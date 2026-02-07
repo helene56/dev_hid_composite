@@ -49,14 +49,27 @@ enum
   BLINK_SUSPENDED = 2500,
 };
 
-static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
+enum col
+{
+  COLA = 5,
+  COLB = 7,
+  COLC = 8,
+};
 
+
+static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
+static enum col col_arr[] = {COLA, COLB, COLC};
+volatile int current_col_idx = 0;
+uint8_t key_0 = 1;
+uint8_t key_pressed = 0;
 void led_blinking_task(void);
 void hid_task(void);
+void scan_btn_matrix(void);
 
 /*------------- MAIN -------------*/
 int main(void)
 {
+
   board_init();
 
   // init device stack on configured roothub port
@@ -81,16 +94,20 @@ int main(void)
   // cols
   gpio_init(5);
   gpio_set_dir(5, true);
+  gpio_put(5, true);
   gpio_init(7);
   gpio_set_dir(7, true);
+  gpio_put(7, true);
   gpio_init(8);
   gpio_set_dir(8, true);
+  gpio_put(8, true);
 
   while (1)
   {
     tud_task(); // tinyusb device task
     led_blinking_task();
 
+    scan_btn_matrix();
     hid_task();
   }
 }
@@ -136,93 +153,26 @@ static void send_hid_report(uint8_t report_id, uint32_t btn)
   if (!tud_hid_ready())
     return;
 
-  switch (report_id)
+  // use to avoid send multiple consecutive zero report for keyboard
+  static bool has_keyboard_key = false;
+
+  if (btn)
   {
-  case REPORT_ID_KEYBOARD:
+    uint8_t keycode[6] = {0};
+    keycode[0] = HID_KEY_A;
+    keycode[1] = HID_KEY_B;
+
+    tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, keycode);
+    has_keyboard_key = true;
+  }
+  else
   {
-    // use to avoid send multiple consecutive zero report for keyboard
-    static bool has_keyboard_key = false;
-
-    if (btn)
-    {
-      uint8_t keycode[6] = {0};
-      keycode[0] = HID_KEY_A;
-      keycode[1] = HID_KEY_B;
-
-      tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, keycode);
-      has_keyboard_key = true;
-    }
-    else
-    {
-      // send empty key report if previously has key pressed
-      if (has_keyboard_key)
-        tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, NULL);
-      has_keyboard_key = false;
-    }
+    // send empty key report if previously has key pressed
+    if (has_keyboard_key)
+      tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, NULL);
+    has_keyboard_key = false;
   }
-  break;
 
-    // case REPORT_ID_MOUSE:
-    // {
-    //   int8_t const delta = 5;
-
-    //   // no button, right + down, no scroll, no pan
-    //   tud_hid_mouse_report(REPORT_ID_MOUSE, 0x00, delta, delta, 0, 0);
-    // }
-    // break;
-
-    // case REPORT_ID_CONSUMER_CONTROL:
-    // {
-    //   // use to avoid send multiple consecutive zero report
-    //   static bool has_consumer_key = false;
-
-    //   if ( btn )
-    //   {
-    //     // volume down
-    //     uint16_t volume_down = HID_USAGE_CONSUMER_VOLUME_DECREMENT;
-    //     tud_hid_report(REPORT_ID_CONSUMER_CONTROL, &volume_down, 2);
-    //     has_consumer_key = true;
-    //   }else
-    //   {
-    //     // send empty key report (release key) if previously has key pressed
-    //     uint16_t empty_key = 0;
-    //     if (has_consumer_key) tud_hid_report(REPORT_ID_CONSUMER_CONTROL, &empty_key, 2);
-    //     has_consumer_key = false;
-    //   }
-    // }
-    // break;
-
-    // case REPORT_ID_GAMEPAD:
-    // {
-    //   // use to avoid send multiple consecutive zero report for keyboard
-    //   static bool has_gamepad_key = false;
-
-    //   hid_gamepad_report_t report =
-    //   {
-    //     .x   = 0, .y = 0, .z = 0, .rz = 0, .rx = 0, .ry = 0,
-    //     .hat = 0, .buttons = 0
-    //   };
-
-    //   if ( btn )
-    //   {
-    //     report.hat = GAMEPAD_HAT_UP;
-    //     report.buttons = GAMEPAD_BUTTON_A;
-    //     tud_hid_report(REPORT_ID_GAMEPAD, &report, sizeof(report));
-
-    //     has_gamepad_key = true;
-    //   }else
-    //   {
-    //     report.hat = GAMEPAD_HAT_CENTERED;
-    //     report.buttons = 0;
-    //     if (has_gamepad_key) tud_hid_report(REPORT_ID_GAMEPAD, &report, sizeof(report));
-    //     has_gamepad_key = false;
-    //   }
-    // }
-    // break;
-
-  default:
-    break;
-  }
 }
 
 // Every 10ms, we will sent 1 report for each HID profile (keyboard, mouse etc ..)
@@ -238,7 +188,9 @@ void hid_task(void)
   start_ms += interval_ms;
 
   // uint32_t const btn = board_button_read();
-  uint32_t const btn = !gpio_get(4);
+  // uint32_t const btn = (key_pressed == key_0 && !gpio_get(5));
+  uint32_t const btn = key_pressed;
+  // uint32_t const btn = !gpio_get(4);
 
   // Remote wakeup
   if (tud_suspended() && btn)
@@ -260,14 +212,8 @@ void hid_task(void)
 void tud_hid_report_complete_cb(uint8_t instance, uint8_t const *report, uint16_t len)
 {
   (void)instance;
+  (void)report;
   (void)len;
-
-  uint8_t next_report_id = report[0] + 1u;
-
-  if (next_report_id < REPORT_ID_COUNT)
-  {
-    send_hid_report(next_report_id, board_button_read());
-  }
 }
 
 // Invoked when received GET_REPORT control request
@@ -337,4 +283,48 @@ void led_blinking_task(void)
 
   board_led_write(led_state);
   led_state = 1 - led_state; // toggle
+}
+
+
+void scan_btn_matrix()
+{
+  // Poll every 1ms
+  const uint32_t interval_ms = 1;
+  static uint32_t start_ms = 0;
+  if (board_millis() - start_ms < interval_ms)
+    return; // not enough time
+  start_ms += interval_ms;
+
+
+  // set all columns high
+  gpio_put(5, true);
+  gpio_put(7, true);
+  gpio_put(8, true);
+
+  // set current col to active
+  gpio_put(col_arr[current_col_idx], false);
+  bool row4 = !gpio_get(4);
+  if (current_col_idx == 1)
+  {
+      key_pressed = !gpio_get(4);   // row is low => pressed
+  }
+
+  // wrap to 0 if 2
+  if (++current_col_idx > 2) current_col_idx = 0;
+  // read rows
+  
+  // set next col to active
+  // gpio_put(col_arr[current_col_idx], false);
+
+  // // read all rows, find the row that is pressed
+  // uint8_t row_pressed = ((!gpio_get(4) | !gpio_get(6) | !gpio_get(9))); // 100
+
+  // uint8_t row_mask = (!gpio_get(4) ? 1u << 0 : 0)
+  //            | (!gpio_get(6) ? 1u << 1 : 0)
+  //            | (!gpio_get(9) ? 1u << 2 : 0);
+  
+
+
+  // key_pressed = row_mask;
+
 }
