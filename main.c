@@ -66,11 +66,14 @@ enum row
 static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 static enum col col_arr[] = {COLA, COLB, COLC};
 
+static volatile uint8_t row_mask = 0;
+static volatile uint8_t col_state[3] = {0, 0, 0};
+
+uint8_t mapped_keys[3][3] = {HID_KEY_0, HID_KEY_1, HID_KEY_2,
+                             HID_KEY_3, HID_KEY_4, HID_KEY_5,
+                             HID_KEY_6, HID_KEY_7, HID_KEY_8};
+
 int current_col_idx = 0;
-
-static volatile bool btnA_pressed = false; // (row0,col0) = (GPIO4, GPIO5)
-static volatile bool btnB_pressed = false; // (row0,col1) = (GPIO4, GPIO7)
-
 
 void led_blinking_task(void);
 void hid_task(void);
@@ -169,12 +172,16 @@ static void send_hid_report(uint8_t report_id, uint32_t btn)
     if (btn)
     {
         uint8_t keycode[6] = {0};
-        int k = 0;
-
-        if (btnA_pressed) keycode[k++] = HID_KEY_A;
-        if (btnB_pressed) keycode[k++] = HID_KEY_B;
-
-        
+        // int k = 0;
+        for (int r = 0; r < 3; r++)
+        {
+            for (int c = 0; c < 3; c++)
+            {
+                bool rc = (col_state[c] & (1u << r)) != 0;
+                if (rc)
+                    keycode[0] = mapped_keys[r][c];
+            }
+        }
 
         tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, keycode);
         has_keyboard_key = true;
@@ -200,18 +207,11 @@ void hid_task(void)
         return; // not enough time
     start_ms += interval_ms;
 
-    // uint32_t const btn = board_button_read();
-    // uint32_t const btn = (key_pressed == key_0 && !gpio_get(5));
-    // key_pressed = false;
-    // for (int i =0; i<2; i++)
-    // {
-    //     if (row_idx[i])
-    //     {
-    //         key_pressed = true;
-    //         break;
-    //     }
-    // }
-    bool any = btnA_pressed || btnB_pressed;
+    // uint32_t const btn = board_button_read();abababababababababab
+
+    // bool any = btnA_pressed || btnB_pressed;
+    uint8_t matrix_mask = col_state[0] | col_state[1] | col_state[2];
+    bool any = (matrix_mask & 0b0111) != 0;
     uint32_t const btn = any;
     // uint32_t const btn = !gpio_get(4);
 
@@ -323,27 +323,16 @@ void scan_btn_matrix()
     gpio_put(COLA, true);
     gpio_put(COLB, true);
     gpio_put(COLC, true);
-
     // set current col to active
     gpio_put(col_arr[active_col], false);
     sleep_us(2);
     // read rows
-    bool r0 = !gpio_get(ROW1); //
-    bool r2 = !gpio_get(ROW3); // 
-
-    // Update only the key that belongs to this scanned column
-    if (active_col == 0)               
-    {
-        btnA_pressed = r0;
-    }
-    else if (active_col == 2)          
-    {
-        btnB_pressed = r2;
-    }
+    row_mask = ((1 ? !gpio_get(ROW3) : 0) << 2) | ((1 ? !gpio_get(ROW2) : 0) << 1) | ((1 ? !gpio_get(ROW1) : 0) << 0);
+    // update states
+    col_state[active_col] = row_mask;
 
     // advance column
     current_col_idx++;
-    if (current_col_idx > 2) current_col_idx = 0;
-
-
+    if (current_col_idx > 2)
+        current_col_idx = 0;
 }
