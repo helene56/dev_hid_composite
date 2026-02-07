@@ -12,7 +12,6 @@ _build/
 cmake/**/.generated/*
 cmake/**/CMake*
 out/
-CMake*
 *json
 *cmake
 raspberrypi-swd.cfg
