@@ -94,26 +94,26 @@ int main(void)
     }
 
     // rows
-    gpio_init(4);
-    gpio_pull_up(4);
-    gpio_set_dir(4, false);
-    gpio_init(6);
-    gpio_pull_up(6);
-    gpio_set_dir(6, false);
-    gpio_init(9);
-    gpio_pull_up(9);
-    gpio_set_dir(9, false);
+    gpio_init(ROW1);
+    gpio_pull_up(ROW1);
+    gpio_set_dir(ROW1, false);
+    gpio_init(ROW2);
+    gpio_pull_up(ROW2);
+    gpio_set_dir(ROW2, false);
+    gpio_init(ROW3);
+    gpio_pull_up(ROW3);
+    gpio_set_dir(ROW3, false);
 
     // cols
-    gpio_init(5);
-    gpio_set_dir(5, true);
-    gpio_put(5, true);
-    gpio_init(7);
-    gpio_set_dir(7, true);
-    gpio_put(7, true);
-    gpio_init(8);
-    gpio_set_dir(8, true);
-    gpio_put(8, true);
+    gpio_init(COLA);
+    gpio_set_dir(COLA, true);
+    gpio_put(COLA, true);
+    gpio_init(COLB);
+    gpio_set_dir(COLB, true);
+    gpio_put(COLB, true);
+    gpio_init(COLC);
+    gpio_set_dir(COLC, true);
+    gpio_put(COLC, true);
 
     while (1)
     {
@@ -172,7 +172,7 @@ static void send_hid_report(uint8_t report_id, uint32_t btn)
     if (btn)
     {
         uint8_t keycode[6] = {0};
-        // int k = 0;
+
         for (int r = 0; r < 3; r++)
         {
             for (int c = 0; c < 3; c++)
