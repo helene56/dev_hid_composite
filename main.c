@@ -71,7 +71,7 @@ static volatile uint8_t col_state[3] = {0, 0, 0};
 
 uint8_t mapped_keys[3][3] = {HID_KEY_0, HID_KEY_1, HID_KEY_2,
                              HID_KEY_3, HID_KEY_4, HID_KEY_5,
-                             HID_KEY_6, HID_KEY_7, HID_KEY_8};
+                             HID_KEY_C, HID_KEY_7, HID_KEY_V};
 
 int current_col_idx = 0;
 
@@ -168,6 +168,7 @@ static void send_hid_report(uint8_t report_id, uint32_t btn)
 
     // use to avoid send multiple consecutive zero report for keyboard
     static bool has_keyboard_key = false;
+    int modifier = 0;
 
     if (btn)
     {
@@ -178,12 +179,24 @@ static void send_hid_report(uint8_t report_id, uint32_t btn)
             for (int c = 0; c < 3; c++)
             {
                 bool rc = (col_state[c] & (1u << r)) != 0;
+                
                 if (rc)
+                {
+                    if (r == 2 && c == 0)
+                    {
+                        modifier = KEYBOARD_MODIFIER_LEFTCTRL;
+                    }
+                    else if (r == 2 && c == 2)
+                    {
+                        modifier = KEYBOARD_MODIFIER_LEFTCTRL;
+                    }
                     keycode[0] = mapped_keys[r][c];
+                }
+                    
             }
         }
 
-        tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, keycode);
+        tud_hid_keyboard_report(REPORT_ID_KEYBOARD, modifier, keycode);
         has_keyboard_key = true;
     }
     else
