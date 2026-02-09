@@ -7,6 +7,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("hello world app")
 
         container = QWidget()
+        container.setStyleSheet("background: white;")
         self.setCentralWidget(container)
 
         layout = QGridLayout(container)
@@ -26,10 +27,29 @@ class MainWindow(QMainWindow):
         # layout.addWidget(label3, 1, 1)
         # layout.addWidget(button, 1, 0)
 
-        # 3x3 keyboard-style buttons with subtle shadow
-        key_grid = QGridLayout()
-        key_grid.setHorizontalSpacing(10)
-        key_grid.setVerticalSpacing(10)
+        # 3x3 keyboard-style buttons with layered background
+        key_panel = QWidget()
+        key_panel.setStyleSheet(
+            "background: #e9eef2;"
+            "border-radius: 14px;"
+        )
+
+        btn_size = 70
+        spacing = 0
+        grey_cushion = 10   # outer grey cushion
+        blue_cushion = 3   # inner translucent blue cushion
+
+        # inner translucent blue surface that sits above the grey panel
+        key_surface = QWidget()
+        key_surface.setStyleSheet(
+            "background: rgba(126, 171, 214, 0.34);"  # soft blue tint
+            "border-radius: 12px;"
+        )
+
+        key_grid = QGridLayout(key_surface)
+        key_grid.setContentsMargins(blue_cushion, blue_cushion, blue_cushion, blue_cushion)
+        key_grid.setHorizontalSpacing(spacing)
+        key_grid.setVerticalSpacing(spacing)
 
         key_style = (
             "QPushButton {"
@@ -49,8 +69,9 @@ class MainWindow(QMainWindow):
 
         for r in range(3):
             for c in range(3):
-                key = QPushButton(f"Key {r*3 + c + 1}")
-                key.setMinimumSize(64, 64)
+                key = QPushButton(f"{r*3 + c + 1}")
+                key.setMinimumSize(btn_size, btn_size)
+                key.setMaximumSize(btn_size, btn_size)
                 key.setStyleSheet(key_style)
 
                 shadow = QGraphicsDropShadowEffect()
@@ -61,7 +82,19 @@ class MainWindow(QMainWindow):
 
                 key_grid.addWidget(key, r, c)
 
-        layout.addLayout(key_grid, 2, 0, 1, 2)
+        blue_w = blue_cushion * 2 + btn_size * 3 + spacing * 2
+        blue_h = blue_cushion * 2 + btn_size * 3 + spacing * 2
+        key_surface.setFixedSize(blue_w, blue_h)
+
+        panel_w = grey_cushion * 2 + blue_w
+        panel_h = grey_cushion * 2 + blue_h
+        key_panel.setFixedSize(panel_w, panel_h)
+
+        panel_layout = QGridLayout(key_panel)
+        panel_layout.setContentsMargins(grey_cushion, grey_cushion, grey_cushion, grey_cushion)
+        panel_layout.addWidget(key_surface, 0, 0, alignment=Qt.AlignCenter)
+
+        layout.addWidget(key_panel, 2, 0, 1, 2, alignment=Qt.AlignCenter)
 
 def do_something():
     print("hello")
