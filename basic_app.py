@@ -7,7 +7,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("hello world app")
 
         container = QWidget()
-        container.setStyleSheet("background: white;")
+        container.setStyleSheet("background: #f6f2fa;")
         self.setCentralWidget(container)
 
         layout = QGridLayout(container)
@@ -90,47 +90,97 @@ class MainWindow(QMainWindow):
         panel_h = grey_cushion * 2 + blue_h
         key_panel.setFixedSize(panel_w, panel_h)
 
+        # white outline frame around the key grid
+        key_frame = QWidget()
+        frame_margin = 6
+        key_frame.setStyleSheet(
+            "background: white;"
+            "border-radius: 16px;"
+        )
+        frame_layout = QGridLayout(key_frame)
+        frame_layout.setContentsMargins(frame_margin, frame_margin, frame_margin, frame_margin)
+        frame_layout.addWidget(key_panel, 0, 0, alignment=Qt.AlignCenter)
+
         panel_layout = QGridLayout(key_panel)
         panel_layout.setContentsMargins(grey_cushion, grey_cushion, grey_cushion, grey_cushion)
         panel_layout.addWidget(key_surface, 0, 0, alignment=Qt.AlignCenter)
 
         # key map list box underneath: white fill with blue outline
         map_width = 500
-        map_height = 300
+        map_height = 320
         map_border = 2
         map_radius = 12
 
         map_box = QWidget()
         map_box.setStyleSheet(
-            f"background: white;"
-            f"border: {map_border}px solid rgba(126, 171, 214, 0.3);"
+            f"background: white;"  # keep map area bright to reduce overall grey
+            f"border: {map_border}px solid rgba(126, 171, 214, 0.35);"
             f"border-radius: {map_radius}px;"
         )
         map_box.setFixedSize(map_width, map_height)
 
         # column layout inside map box (cells 1..9)
         map_layout = QGridLayout(map_box)
-        map_layout.setContentsMargins(12, 12, 12, 12)
+        map_layout.setContentsMargins(10, 10, 10, 10)
         map_layout.setHorizontalSpacing(0)
         map_layout.setVerticalSpacing(0)
 
-        cell_style = (
+        base_cell_style = (
             "QLabel {"
             "  background: white;"
-            "  border-bottom: 1px solid #d1d9e0;"
+            "  border-left: 1px solid #b7c2cc;"
+            "  border-right: 1px solid #b7c2cc;"
+            "  border-bottom: 1px solid #cbd5e1;"
             "  color: #1f2d3a;"
-            "  font-size: 14px;"
-            "  padding: 6px 8px;"
+            "  font-size: 15px;"
+            "  font-weight: 600;"
+            "  padding: 8px 12px;"
+            "}"
+        )
+
+        first_cell_style = (
+            "QLabel {"
+            "  background: white;"
+            "  border: 1px solid #b7c2cc;"
+            "  border-bottom: 1px solid #cbd5e1;"
+            "  border-top-left-radius: 8px;"
+            "  border-top-right-radius: 8px;"
+            "  color: #1f2d3a;"
+            "  font-size: 15px;"
+            "  font-weight: 600;"
+            "  padding: 8px 12px;"
+            "}"
+        )
+
+        last_cell_style = (
+            "QLabel {"
+            "  background: white;"
+            "  border-left: 1px solid #b7c2cc;"
+            "  border-right: 1px solid #b7c2cc;"
+            "  border-bottom: 1px solid #b7c2cc;"
+            "  border-bottom-left-radius: 8px;"
+            "  border-bottom-right-radius: 8px;"
+            "  color: #1f2d3a;"
+            "  font-size: 15px;"
+            "  font-weight: 600;"
+            "  padding: 8px 12px;"
             "}"
         )
 
         for i in range(9):
             cell = QLabel(str(i + 1))
-            cell.setAlignment(Qt.AlignLeft)
-            cell.setStyleSheet(cell_style)
+            # left-align with a small inset for clarity
+            cell.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
+            cell.setContentsMargins(6, 0, 0, 0)
+            if i == 0:
+                cell.setStyleSheet(first_cell_style)
+            elif i == 8:
+                cell.setStyleSheet(last_cell_style)
+            else:
+                cell.setStyleSheet(base_cell_style)
             map_layout.addWidget(cell, i, 0)
 
-        layout.addWidget(key_panel, 1, 1, 1, 2, alignment=Qt.AlignCenter)
+        layout.addWidget(key_frame, 1, 1, 1, 2, alignment=Qt.AlignCenter)
         layout.addWidget(map_box, 2, 1, 1, 2, alignment=Qt.AlignCenter)
 
 def do_something():
