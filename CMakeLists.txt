@@ -53,7 +53,7 @@ target_include_directories(dev_hid_composite PUBLIC
 target_link_libraries(dev_hid_composite PUBLIC pico_stdlib pico_unique_id tinyusb_device tinyusb_board)
 
 #  # enable usb output, disable uart output
-# pico_enable_stdio_usb(dev_hid_composite 1)
+pico_enable_stdio_usb(dev_hid_composite 1)
 # pico_enable_stdio_uart(dev_hid_composite 0)
 
 # Uncomment this line to enable fix for Errata RP2040-E5 (the fix requires use of GPIO 15)

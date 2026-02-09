@@ -78,9 +78,9 @@ uint8_t const * tud_descriptor_device_cb(void)
 uint8_t const desc_hid_report[] =
 {
   TUD_HID_REPORT_DESC_KEYBOARD( HID_REPORT_ID(REPORT_ID_KEYBOARD         )),
-  TUD_HID_REPORT_DESC_MOUSE   ( HID_REPORT_ID(REPORT_ID_MOUSE            )),
-  TUD_HID_REPORT_DESC_CONSUMER( HID_REPORT_ID(REPORT_ID_CONSUMER_CONTROL )),
-  TUD_HID_REPORT_DESC_GAMEPAD ( HID_REPORT_ID(REPORT_ID_GAMEPAD          ))
+  // TUD_HID_REPORT_DESC_MOUSE   ( HID_REPORT_ID(REPORT_ID_MOUSE            )),
+  // TUD_HID_REPORT_DESC_CONSUMER( HID_REPORT_ID(REPORT_ID_CONSUMER_CONTROL )),
+  // TUD_HID_REPORT_DESC_GAMEPAD ( HID_REPORT_ID(REPORT_ID_GAMEPAD          ))
 };
 
 // Invoked when received GET HID REPORT DESCRIPTOR
@@ -98,20 +98,38 @@ uint8_t const * tud_hid_descriptor_report_cb(uint8_t instance)
 
 enum
 {
+  ITF_NUM_CDC0,
+  ITF_NUM_CDC0_DATA,
+  ITF_NUM_CDC1,
+  ITF_NUM_CDC1_DATA,
   ITF_NUM_HID,
   ITF_NUM_TOTAL
 };
 
-#define  CONFIG_TOTAL_LEN  (TUD_CONFIG_DESC_LEN + TUD_HID_DESC_LEN)
+#define  CONFIG_TOTAL_LEN  (TUD_CONFIG_DESC_LEN + 2*TUD_CDC_DESC_LEN + TUD_HID_DESC_LEN)
 
-#define EPNUM_HID   0x81
+#define EPNUM_CDC_0_NOTIF   0x81
+#define EPNUM_CDC_0_OUT     0x02
+#define EPNUM_CDC_0_IN      0x82
+
+#define EPNUM_CDC_1_NOTIF   0x83
+#define EPNUM_CDC_1_OUT     0x04
+#define EPNUM_CDC_1_IN      0x84
+
+#define EPNUM_HID           0x85
 
 uint8_t const desc_configuration[] =
 {
   // Config number, interface count, string index, total length, attribute, power in mA
   TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP, 100),
 
-  // Interface number, string index, protocol, report descriptor len, EP In address, size & polling interval
+  // CDC 0
+  TUD_CDC_DESCRIPTOR(ITF_NUM_CDC0, 0, EPNUM_CDC_0_NOTIF, 8, EPNUM_CDC_0_OUT, EPNUM_CDC_0_IN, CFG_TUD_CDC_EP_BUFSIZE),
+
+  // CDC 1
+  TUD_CDC_DESCRIPTOR(ITF_NUM_CDC1, 0, EPNUM_CDC_1_NOTIF, 8, EPNUM_CDC_1_OUT, EPNUM_CDC_1_IN, CFG_TUD_CDC_EP_BUFSIZE),
+
+  // HID
   TUD_HID_DESCRIPTOR(ITF_NUM_HID, 0, HID_ITF_PROTOCOL_NONE, sizeof(desc_hid_report), EPNUM_HID, CFG_TUD_HID_EP_BUFSIZE, 5)
 };
 
@@ -190,8 +208,8 @@ enum {
 char const *string_desc_arr[] =
 {
   (const char[]) { 0x09, 0x04 }, // 0: is supported language is English (0x0409)
-  "TinyUSB",                     // 1: Manufacturer
-  "TinyUSB Device",              // 2: Product
+  "HeleneUSB",                     // 1: Manufacturer
+  "PicoUSB Device",              // 2: Product
   NULL,                          // 3: Serials will use unique ID if possible
 };
 

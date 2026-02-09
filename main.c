@@ -78,6 +78,7 @@ int current_col_idx = 0;
 void led_blinking_task(void);
 void hid_task(void);
 void scan_btn_matrix(void);
+void custom_cdc_task(void);
 
 /*------------- MAIN -------------*/
 int main(void)
@@ -92,6 +93,8 @@ int main(void)
     {
         board_init_after_tusb();
     }
+    // let pico sdk use the first cdc interface for std io
+    stdio_init_all();
 
     // rows
     gpio_init(ROW1);
@@ -122,6 +125,7 @@ int main(void)
 
         scan_btn_matrix();
         hid_task();
+        // custom_cdc_task();
     }
 }
 
@@ -348,4 +352,60 @@ void scan_btn_matrix()
     current_col_idx++;
     if (current_col_idx > 2)
         current_col_idx = 0;
+}
+
+
+
+void custom_cdc_task(void)
+{
+    // polling CDC interfaces if wanted
+
+    // Check if CDC interface 0 (for pico sdk stdio) is connected and ready
+
+    if (tud_cdc_n_connected(0)) {
+        // print on CDC 0 some debug message
+        printf("Connected to CDC 0\n");
+        sleep_ms(5); // wait for 5 seconds
+    }
+}
+
+// callback when data is received on a CDC interface
+void tud_cdc_rx_cb(uint8_t itf)
+{
+    // allocate buffer for the data in the stack
+    uint8_t buf[CFG_TUD_CDC_RX_BUFSIZE];
+
+    printf("RX CDC %d\n", itf);
+
+    // read the available data 
+    // | IMPORTANT: also do this for CDC0 because otherwise
+    // | you won't be able to print anymore to CDC0
+    // | next time this function is called
+    uint32_t count = tud_cdc_n_read(itf, buf, sizeof(buf));
+
+    // check if the data was received on the second cdc interface
+    if (itf == 1) {
+        // process the received data
+        if (buf[0] == 0x4f) // "O"
+        {
+            blink_interval_ms = 0;
+            board_led_write(true);
+            
+        }
+        else if (buf[0] == 0x41) // A
+        {
+            mapped_keys[0][0] = HID_KEY_A;
+        }
+        else if (buf[0] = 0x30) // 0
+        {
+            mapped_keys[0][0] = HID_KEY_0;
+        }
+        buf[count] = 0; // null-terminate the string
+        // now echo data back to the console on CDC 0
+        printf("Received on CDC 1: %s\n", buf);
+
+        // and echo back OK on CDC 1
+        tud_cdc_n_write(itf, (uint8_t const *) "OK\r\n", 4);
+        tud_cdc_n_write_flush(itf);
+    }
 }
