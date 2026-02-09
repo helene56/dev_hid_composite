@@ -16,3 +16,4 @@ out/
 *cmake
 raspberrypi-swd.cfg
 LICENSE.TXT
+.venv/
