@@ -94,7 +94,44 @@ class MainWindow(QMainWindow):
         panel_layout.setContentsMargins(grey_cushion, grey_cushion, grey_cushion, grey_cushion)
         panel_layout.addWidget(key_surface, 0, 0, alignment=Qt.AlignCenter)
 
-        layout.addWidget(key_panel, 2, 0, 1, 2, alignment=Qt.AlignCenter)
+        # key map list box underneath: white fill with blue outline
+        map_width = 500
+        map_height = 300
+        map_border = 2
+        map_radius = 12
+
+        map_box = QWidget()
+        map_box.setStyleSheet(
+            f"background: white;"
+            f"border: {map_border}px solid rgba(126, 171, 214, 0.3);"
+            f"border-radius: {map_radius}px;"
+        )
+        map_box.setFixedSize(map_width, map_height)
+
+        # column layout inside map box (cells 1..9)
+        map_layout = QGridLayout(map_box)
+        map_layout.setContentsMargins(12, 12, 12, 12)
+        map_layout.setHorizontalSpacing(0)
+        map_layout.setVerticalSpacing(0)
+
+        cell_style = (
+            "QLabel {"
+            "  background: white;"
+            "  border-bottom: 1px solid #d1d9e0;"
+            "  color: #1f2d3a;"
+            "  font-size: 14px;"
+            "  padding: 6px 8px;"
+            "}"
+        )
+
+        for i in range(9):
+            cell = QLabel(str(i + 1))
+            cell.setAlignment(Qt.AlignLeft)
+            cell.setStyleSheet(cell_style)
+            map_layout.addWidget(cell, i, 0)
+
+        layout.addWidget(key_panel, 1, 1, 1, 2, alignment=Qt.AlignCenter)
+        layout.addWidget(map_box, 2, 1, 1, 2, alignment=Qt.AlignCenter)
 
 def do_something():
     print("hello")
