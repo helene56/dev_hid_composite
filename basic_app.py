@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import QApplication, QMainWindow, QLabel, QWidget, QGridLayout, QPushButton, QGraphicsDropShadowEffect
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QShortcut, QKeySequence
+from PySide6.QtGui import QShortcut, QKeySequence, QPixmap
 
 
 class MainWindow(QMainWindow):
@@ -35,7 +35,7 @@ class MainWindow(QMainWindow):
         # 3x3 keyboard-style buttons with layered background
         key_panel = QWidget()
         key_panel.setStyleSheet(
-            "background: #e9eef2;"
+            "background: #87cfa7;"  # pastel Pico green, nudged a bit darker
             "border-radius: 14px;"
         )
 
@@ -96,8 +96,22 @@ class MainWindow(QMainWindow):
         blue_h = blue_cushion * 2 + btn_size * 3 + spacing * 2
         key_surface.setFixedSize(blue_w, blue_h)
 
-        panel_w = grey_cushion * 2 + blue_w
-        panel_h = grey_cushion * 2 + blue_h
+        # scaled pinout image to sit to the right of the key grid
+        img_label = QLabel()
+        pixmap = QPixmap("pico-pinout-1-green.jpg")
+        if not pixmap.isNull():
+            pixmap = pixmap.scaledToHeight(blue_h, Qt.SmoothTransformation)
+            img_label.setPixmap(pixmap)
+            img_label.setAlignment(Qt.AlignCenter)
+            img_w = pixmap.width()
+            img_h = pixmap.height()
+        else:
+            img_label.hide()
+            img_w = 0
+            img_h = 0
+
+        panel_w = grey_cushion * 2 + blue_w + (grey_cushion + img_w if img_w else 0)
+        panel_h = grey_cushion * 2 + max(blue_h, img_h)
         key_panel.setFixedSize(panel_w, panel_h)
 
         # white outline frame around the key grid
@@ -113,7 +127,11 @@ class MainWindow(QMainWindow):
 
         panel_layout = QGridLayout(key_panel)
         panel_layout.setContentsMargins(grey_cushion, grey_cushion, grey_cushion, grey_cushion)
-        panel_layout.addWidget(key_surface, 0, 0, alignment=Qt.AlignCenter)
+        panel_layout.setHorizontalSpacing(grey_cushion)
+        # Align the key grid to the left edge of the panel while keeping the cushion
+        panel_layout.addWidget(key_surface, 0, 0, alignment=Qt.AlignLeft | Qt.AlignVCenter)
+        if not pixmap.isNull():
+            panel_layout.addWidget(img_label, 0, 1, alignment=Qt.AlignLeft | Qt.AlignVCenter)
 
         # key map list box underneath: white fill with blue outline
         map_width = 500
@@ -135,12 +153,23 @@ class MainWindow(QMainWindow):
         map_layout.setHorizontalSpacing(0)
         map_layout.setVerticalSpacing(0)
 
+        # wrapper draws the outer outline and rounding once; cells only add separators
+        column_wrapper = QWidget()
+        column_wrapper.setStyleSheet(
+            "background: white;"
+            "border: 1px solid #b7c2cc;"
+            "border-radius: 8px;"
+        )
+
+        column_layout = QGridLayout(column_wrapper)
+        column_layout.setContentsMargins(0, 0, 0, 0)
+        column_layout.setHorizontalSpacing(0)
+        column_layout.setVerticalSpacing(0)
+
         base_cell_style = (
             "QLabel {"
-            "  background: white;"
-            "  border-left: 1px solid #b7c2cc;"
-            "  border-right: 1px solid #b7c2cc;"
-            "  border-bottom: 1px solid #cbd5e1;"
+            "  background: transparent;"
+            "  border: none;"
             "  color: #1f2d3a;"
             "  font-size: 15px;"
             "  font-weight: 600;"
@@ -148,28 +177,11 @@ class MainWindow(QMainWindow):
             "}"
         )
 
-        first_cell_style = (
+        separator_style = (
             "QLabel {"
-            "  background: white;"
-            "  border: 1px solid #b7c2cc;"
-            "  border-bottom: 1px solid #cbd5e1;"
-            "  border-top-left-radius: 8px;"
-            "  border-top-right-radius: 8px;"
-            "  color: #1f2d3a;"
-            "  font-size: 15px;"
-            "  font-weight: 600;"
-            "  padding: 8px 12px;"
-            "}"
-        )
-
-        last_cell_style = (
-            "QLabel {"
-            "  background: white;"
-            "  border-left: 1px solid #b7c2cc;"
-            "  border-right: 1px solid #b7c2cc;"
-            "  border-bottom: 1px solid #b7c2cc;"
-            "  border-bottom-left-radius: 8px;"
-            "  border-bottom-right-radius: 8px;"
+            "  background: transparent;"
+            "  border: none;"
+            "  border-top: 1px solid #cbd5e1;"
             "  color: #1f2d3a;"
             "  font-size: 15px;"
             "  font-weight: 600;"
@@ -179,16 +191,15 @@ class MainWindow(QMainWindow):
 
         for i in range(9):
             cell = QLabel(str(i + 1))
-            # left-align with a small inset for clarity
             cell.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
             cell.setContentsMargins(6, 0, 0, 0)
             if i == 0:
-                cell.setStyleSheet(first_cell_style)
-            elif i == 8:
-                cell.setStyleSheet(last_cell_style)
-            else:
                 cell.setStyleSheet(base_cell_style)
-            map_layout.addWidget(cell, i, 0)
+            else:
+                cell.setStyleSheet(separator_style)
+            column_layout.addWidget(cell, i, 0)
+
+        map_layout.addWidget(column_wrapper, 0, 0)
 
         layout.addWidget(key_frame, 1, 1, 1, 2, alignment=Qt.AlignCenter)
         layout.addWidget(map_box, 2, 1, 1, 2, alignment=Qt.AlignCenter)
@@ -204,8 +215,6 @@ class MainWindow(QMainWindow):
         btn = self.sender()
         if checked:
             self.last_checked = btn
-        elif not checked:
-            btn.isChecked(True)
         # optional: do something when unchecked as well
 
     def clear_last_checked(self):
