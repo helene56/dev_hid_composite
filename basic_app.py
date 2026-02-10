@@ -1,11 +1,16 @@
 from PySide6.QtWidgets import QApplication, QMainWindow, QLabel, QWidget, QGridLayout, QPushButton, QGraphicsDropShadowEffect
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QShortcut, QKeySequence
+
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
+        self.setFocusPolicy(Qt.StrongFocus)
         self.setWindowTitle("hello world app")
-
+        # self.keys = []
+        self.last_checked = None
+        qt_keys = [Qt.Key_1, Qt.Key_2, Qt.Key_3, Qt.Key_4, Qt.Key_5, Qt.Key_6, Qt.Key_7, Qt.Key_8, Qt.Key_9]
         container = QWidget()
         container.setStyleSheet("background: #f6f2fa;")
         self.setCentralWidget(container)
@@ -65,6 +70,7 @@ class MainWindow(QMainWindow):
             "  background: #e6f1f0;"
             "  border-color: #9aa7b3;"
             "}"
+            "QPushButton:checked { background: #e6f1f0; border-color: #9aa7b3; }"
         )
 
         for r in range(3):
@@ -73,6 +79,10 @@ class MainWindow(QMainWindow):
                 key.setMinimumSize(btn_size, btn_size)
                 key.setMaximumSize(btn_size, btn_size)
                 key.setStyleSheet(key_style)
+                key.setCheckable(True)
+                key.toggled.connect(self.on_toggle)
+                # self.keys.append(key)
+                
 
                 shadow = QGraphicsDropShadowEffect()
                 shadow.setBlurRadius(18)
@@ -182,10 +192,26 @@ class MainWindow(QMainWindow):
 
         layout.addWidget(key_frame, 1, 1, 1, 2, alignment=Qt.AlignCenter)
         layout.addWidget(map_box, 2, 1, 1, 2, alignment=Qt.AlignCenter)
+        # Example shortcut: on Enter, clear the last toggled button (if any)
+        QShortcut(QKeySequence(Qt.Key_Return), self, activated=self.clear_last_checked)
+        for i, key in enumerate(qt_keys):
+            QShortcut(QKeySequence(key), self,
+                    activated=lambda i=i: self.on_toggle)
 
-def do_something():
-    print("hello")
-    
+
+
+    def on_toggle(self, checked):
+        btn = self.sender()
+        if checked:
+            self.last_checked = btn
+        elif not checked:
+            btn.isChecked(True)
+        # optional: do something when unchecked as well
+
+    def clear_last_checked(self):
+        if self.last_checked:
+            self.last_checked.setChecked(False)
+            self.last_checked = None
 
 
 app = QApplication()
