@@ -78,6 +78,7 @@ uint8_t const * tud_descriptor_device_cb(void)
 uint8_t const desc_hid_report[] =
 {
   TUD_HID_REPORT_DESC_KEYBOARD( HID_REPORT_ID(REPORT_ID_KEYBOARD         )),
+  TUD_HID_REPORT_DESC_GENERIC_INOUT(16, HID_REPORT_ID(REPORT_ID_CMD)),
   // TUD_HID_REPORT_DESC_MOUSE   ( HID_REPORT_ID(REPORT_ID_MOUSE            )),
   // TUD_HID_REPORT_DESC_CONSUMER( HID_REPORT_ID(REPORT_ID_CONSUMER_CONTROL )),
   // TUD_HID_REPORT_DESC_GAMEPAD ( HID_REPORT_ID(REPORT_ID_GAMEPAD          ))
@@ -106,7 +107,8 @@ enum
   ITF_NUM_TOTAL
 };
 
-#define  CONFIG_TOTAL_LEN  (TUD_CONFIG_DESC_LEN + 2*TUD_CDC_DESC_LEN + TUD_HID_DESC_LEN)
+// #define  CONFIG_TOTAL_LEN  (TUD_CONFIG_DESC_LEN + 2*TUD_CDC_DESC_LEN + TUD_HID_DESC_LEN)
+#define  CONFIG_TOTAL_LEN  (TUD_CONFIG_DESC_LEN + 2*TUD_CDC_DESC_LEN + TUD_HID_INOUT_DESC_LEN)
 
 #define EPNUM_CDC_0_NOTIF   0x81
 #define EPNUM_CDC_0_OUT     0x02
@@ -116,7 +118,8 @@ enum
 #define EPNUM_CDC_1_OUT     0x04
 #define EPNUM_CDC_1_IN      0x84
 
-#define EPNUM_HID           0x85
+#define EPNUM_HID_OUT       0x05
+#define EPNUM_HID_IN           0x85
 
 uint8_t const desc_configuration[] =
 {
@@ -130,7 +133,12 @@ uint8_t const desc_configuration[] =
   TUD_CDC_DESCRIPTOR(ITF_NUM_CDC1, 0, EPNUM_CDC_1_NOTIF, 8, EPNUM_CDC_1_OUT, EPNUM_CDC_1_IN, CFG_TUD_CDC_EP_BUFSIZE),
 
   // HID
-  TUD_HID_DESCRIPTOR(ITF_NUM_HID, 0, HID_ITF_PROTOCOL_NONE, sizeof(desc_hid_report), EPNUM_HID, CFG_TUD_HID_EP_BUFSIZE, 5)
+  // TUD_HID_DESCRIPTOR(ITF_NUM_HID, 0, HID_ITF_PROTOCOL_NONE, sizeof(desc_hid_report), EPNUM_HID, CFG_TUD_HID_EP_BUFSIZE, 5)
+    // HID (IN + OUT)
+  TUD_HID_INOUT_DESCRIPTOR(ITF_NUM_HID, 0, HID_ITF_PROTOCOL_NONE,
+                           sizeof(desc_hid_report),
+                           EPNUM_HID_OUT, EPNUM_HID_IN,
+                           CFG_TUD_HID_EP_BUFSIZE, 5)
 };
 
 #if TUD_OPT_HIGH_SPEED

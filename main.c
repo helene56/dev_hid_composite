@@ -279,6 +279,12 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id, hid_report_type_
 
     if (report_type == HID_REPORT_TYPE_OUTPUT)
     {
+        if (bufsize < 1)
+                return;
+
+        uint8_t const cmd = buffer[0];
+        printf("command used: %d\n", cmd);
+        printf("report id: %d\n", report_id);
         // Set keyboard LED e.g Capslock, Numlock etc...
         if (report_id == REPORT_ID_KEYBOARD)
         {
@@ -293,6 +299,37 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id, hid_report_type_
                 // Capslock On: disable blink, turn led on
                 blink_interval_ms = 0;
                 board_led_write(true);
+            }
+            else
+            {
+                // Caplocks Off: back to normal blink
+                board_led_write(false);
+                blink_interval_ms = BLINK_MOUNTED;
+            }
+        }
+        else if (report_id == 0) // for generic this is set to 0
+        {
+            // todo i need to check now that the first byte from the buffer is the correct id so buffer[0] == report_id_cmd
+            // bufsize should be (at least) 1
+            if (bufsize < 1)
+                return;
+
+            uint8_t const cmd = buffer[1];
+            printf("command used: %d\n", cmd);
+
+            if (cmd == 0x02)
+            {
+                // Capslock On: disable blink, turn led on
+                blink_interval_ms = 0;
+                board_led_write(true);
+            }
+            else if (cmd == 0x41) // A
+            {
+                mapped_keys[0][0] = HID_KEY_A;
+            }
+            else if (cmd == 0x30) // 0
+            {
+                mapped_keys[0][0] = HID_KEY_0;
             }
             else
             {
@@ -390,6 +427,12 @@ void tud_cdc_rx_cb(uint8_t itf)
         {
             blink_interval_ms = 0;
             board_led_write(true);
+            
+        }
+        else if (buf[0] == 0x46) // "F"
+        {
+            blink_interval_ms = 0;
+            board_led_write(false);
             
         }
         else if (buf[0] == 0x41) // A
