@@ -323,6 +323,12 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id, hid_report_type_
                 blink_interval_ms = 0;
                 board_led_write(true);
             }
+            else if (cmd == 0x03)
+            {
+                // Capslock On: disable blink, turn led on
+                blink_interval_ms = 0;
+                board_led_write(false);
+            }
             else if (cmd == 0x41) // A
             {
                 mapped_keys[0][0] = HID_KEY_A;
