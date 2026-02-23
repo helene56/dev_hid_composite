@@ -1,6 +1,18 @@
 from PySide6.QtWidgets import QApplication, QMainWindow, QLabel, QWidget, QGridLayout, QPushButton, QGraphicsDropShadowEffect
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QShortcut, QKeySequence, QPixmap
+import hid
+
+def toggle_led_on():
+    d = hid.Device()
+    d.open(0xCAFE, 0x4006)
+
+    report_len = 65
+    report = [0x02, 0x02] + [0x00] * (report_len - 2)
+    
+    d.write(report)
+    d.close()
+
 
 
 class MainWindow(QMainWindow):
@@ -110,6 +122,39 @@ class MainWindow(QMainWindow):
             img_w = 0
             img_h = 0
 
+        # small LED toggle button to sit outside the green box (right side)
+        toggle_w = 90
+        toggle_h = 36
+        self.led_toggle = QPushButton("LED Off")
+        self.led_toggle.setCheckable(True)
+        self.led_toggle.setMinimumSize(toggle_w, toggle_h)
+        self.led_toggle.setMaximumHeight(toggle_h)
+        self.led_toggle.setStyleSheet(
+            "QPushButton {"
+            "  background: #ffffff;"
+            "  border: 1.6px solid #b7c2cc;"
+            "  border-radius: 18px;"
+            "  color: #1f2d3a;"
+            "  font-size: 14px;"
+            "  font-weight: 700;"
+            "  padding: 6px 12px;"
+            "}"
+            "QPushButton:checked {"
+            "  background: #59c173;"
+            "  color: white;"
+            "  border-color: #3fa45c;"
+            "}"
+            "QPushButton:pressed {"
+            "  background: #e6f1f0;"
+            "}"
+        )
+        self.led_toggle.toggled.connect(self.handle_led_toggle)
+        led_shadow = QGraphicsDropShadowEffect()
+        led_shadow.setBlurRadius(14)
+        led_shadow.setOffset(0, 3)
+        led_shadow.setColor(Qt.black)
+        self.led_toggle.setGraphicsEffect(led_shadow)
+
         panel_w = grey_cushion * 2 + blue_w + (grey_cushion + img_w if img_w else 0)
         panel_h = grey_cushion * 2 + max(blue_h, img_h)
         key_panel.setFixedSize(panel_w, panel_h)
@@ -130,8 +175,10 @@ class MainWindow(QMainWindow):
         panel_layout.setHorizontalSpacing(grey_cushion)
         # Align the key grid to the left edge of the panel while keeping the cushion
         panel_layout.addWidget(key_surface, 0, 0, alignment=Qt.AlignLeft | Qt.AlignVCenter)
+        col_idx = 1
         if not pixmap.isNull():
-            panel_layout.addWidget(img_label, 0, 1, alignment=Qt.AlignLeft | Qt.AlignVCenter)
+            panel_layout.addWidget(img_label, 0, col_idx, alignment=Qt.AlignLeft | Qt.AlignVCenter)
+            col_idx += 1
 
         # key map list box underneath: white fill with blue outline
         map_width = 500
@@ -202,6 +249,7 @@ class MainWindow(QMainWindow):
         map_layout.addWidget(column_wrapper, 0, 0)
 
         layout.addWidget(key_frame, 1, 1, 1, 2, alignment=Qt.AlignCenter)
+        layout.addWidget(self.led_toggle, 1, 3, alignment=Qt.AlignLeft | Qt.AlignVCenter)
         layout.addWidget(map_box, 2, 1, 1, 2, alignment=Qt.AlignCenter)
         # Example shortcut: on Enter, clear the last toggled button (if any)
         QShortcut(QKeySequence(Qt.Key_Return), self, activated=self.clear_last_checked)
@@ -216,6 +264,11 @@ class MainWindow(QMainWindow):
         if checked:
             self.last_checked = btn
         # optional: do something when unchecked as well
+
+    def handle_led_toggle(self, checked):
+        # Purely visual toggle; hook up hardware control here if needed.
+        self.led_toggle.setText("LED On" if checked else "LED Off")
+        toggle_led_on()
 
     def clear_last_checked(self):
         if self.last_checked:
