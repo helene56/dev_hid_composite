@@ -1,17 +1,21 @@
-from PySide6.QtWidgets import QApplication, QMainWindow, QLabel, QWidget, QGridLayout, QPushButton, QGraphicsDropShadowEffect
+from PySide6.QtWidgets import QApplication, QMainWindow, QLabel, QWidget, QGridLayout, QHBoxLayout, QPushButton, QGraphicsDropShadowEffect, QButtonGroup
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QShortcut, QKeySequence, QPixmap
+
 import hid
 
-def toggle_led_on():
-    d = hid.Device()
-    d.open(0xCAFE, 0x4006)
 
-    report_len = 65
-    report = [0x02, 0x02] + [0x00] * (report_len - 2)
+
+def toggle_led_on():
+    # d = hid.device()
+    # d.open(0xCAFE, 0x4006)
+
+    # report_len = 65
+    # report = [0x02, 0x02] + [0x00] * (report_len - 2)
     
-    d.write(report)
-    d.close()
+    # d.write(report)
+    # d.close()
+    print("led on")
 
 
 
@@ -20,14 +24,18 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setFocusPolicy(Qt.StrongFocus)
         self.setWindowTitle("hello world app")
-        # self.keys = []
+        self.keys = [QPushButton(str(i), self) for i in range(1,10)]
+        self.group = QButtonGroup(self)
+        self.group.setExclusive(False) 
         self.last_checked = None
+        self.last_checked_id = 0
         qt_keys = [Qt.Key_1, Qt.Key_2, Qt.Key_3, Qt.Key_4, Qt.Key_5, Qt.Key_6, Qt.Key_7, Qt.Key_8, Qt.Key_9]
         container = QWidget()
         container.setStyleSheet("background: #f6f2fa;")
         self.setCentralWidget(container)
-
+        self.listen_for_key = False
         layout = QGridLayout(container)
+        self.key_cell_list = []
 
         # label1 = QLabel("hello world1")
         # label1.setAlignment(Qt.AlignCenter)
@@ -87,13 +95,13 @@ class MainWindow(QMainWindow):
 
         for r in range(3):
             for c in range(3):
-                key = QPushButton(f"{r*3 + c + 1}")
+                key = self.keys[r*3 + c]  # 0‑based index into the 9-button list
                 key.setMinimumSize(btn_size, btn_size)
                 key.setMaximumSize(btn_size, btn_size)
                 key.setStyleSheet(key_style)
                 key.setCheckable(True)
-                key.toggled.connect(self.on_toggle)
-                # self.keys.append(key)
+                # key.toggled.connect(self.on_toggle)
+
                 
 
                 shadow = QGraphicsDropShadowEffect()
@@ -103,6 +111,11 @@ class MainWindow(QMainWindow):
                 key.setGraphicsEffect(shadow)
 
                 key_grid.addWidget(key, r, c)
+                self.group.addButton(key, r*3 + c + 1)
+        
+        self.group.idToggled.connect(self.on_toggle)
+
+
 
         blue_w = blue_cushion * 2 + btn_size * 3 + spacing * 2
         blue_h = blue_cushion * 2 + btn_size * 3 + spacing * 2
@@ -237,14 +250,46 @@ class MainWindow(QMainWindow):
         )
 
         for i in range(9):
-            cell = QLabel(str(i + 1))
-            cell.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
-            cell.setContentsMargins(6, 0, 0, 0)
+            # one row widget so number + value share a single cell outline
+            row = QWidget()
+            row_layout = QHBoxLayout(row)
+            row_layout.setContentsMargins(8, 4, 8, 4)
+            row_layout.setSpacing(10)
+            row.setStyleSheet("background: transparent; border: none; border-radius: 0px;")
+
+            # style on the row draws the separator line (so it spans both texts)
             if i == 0:
-                cell.setStyleSheet(base_cell_style)
+                row.setStyleSheet("background: transparent; border: none; border-radius: 0px;")
             else:
-                cell.setStyleSheet(separator_style)
-            column_layout.addWidget(cell, i, 0)
+                row.setStyleSheet("background: transparent; border: none; border-radius: 0px; border-top: 1px solid #cbd5e1;")
+
+            number_label = QLabel(str(i + 1))
+            number_label.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
+            number_label.setStyleSheet(
+                "background: transparent;"
+                "border: none;"
+                "border-radius: 0px;"
+                "color: #1f2d3a;"
+                "font-size: 15px;"
+                "font-weight: 600;"
+            )
+
+            value_label = QLabel("")
+            value_label.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
+            value_label.setStyleSheet(
+                "background: transparent;"
+                "border: none;"
+                "border-radius: 0px;"
+                "color: #1f2d3a;"
+                "font-size: 15px;"
+                "font-weight: 600;"
+            )
+
+            row_layout.addWidget(number_label)
+            row_layout.addWidget(value_label, stretch=1)
+
+            column_layout.addWidget(row, i, 0)
+            self.key_cell_list.append(value_label)
 
         map_layout.addWidget(column_wrapper, 0, 0)
 
@@ -252,18 +297,34 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.led_toggle, 1, 3, alignment=Qt.AlignLeft | Qt.AlignVCenter)
         layout.addWidget(map_box, 2, 1, 1, 2, alignment=Qt.AlignCenter)
         # Example shortcut: on Enter, clear the last toggled button (if any)
-        QShortcut(QKeySequence(Qt.Key_Return), self, activated=self.clear_last_checked)
-        for i, key in enumerate(qt_keys):
-            QShortcut(QKeySequence(key), self,
-                    activated=lambda i=i: self.on_toggle)
+        # QShortcut(QKeySequence(Qt.Key_Return), self, activated=self.clear_last_checked)
+        # for i, key in enumerate(qt_keys):
+        #     QShortcut(QKeySequence(key), self,
+        #             activated=lambda i=i: self.on_toggle)
 
 
 
-    def on_toggle(self, checked):
+    def on_toggle(self, btn_id, checked):
         btn = self.sender()
+        self.listen_for_key = checked
         if checked:
             self.last_checked = btn
+            self.last_checked_id = btn_id
+            print(f"Pressed index: {btn_id}")
+            
+            
         # optional: do something when unchecked as well
+
+    def keyPressEvent(self, event):
+        if self.listen_for_key:
+            if event.isAutoRepeat():
+                return
+            keycode = event.key()
+            print(keycode, type(keycode))  # e.g. 65 <class 'int'>
+            print(hex(keycode))
+            print(chr(keycode))
+            event.accept()
+            self.key_cell_list[self.last_checked_id - 1].setText(chr(keycode))
 
     def handle_led_toggle(self, checked):
         # Purely visual toggle; hook up hardware control here if needed.
@@ -274,6 +335,8 @@ class MainWindow(QMainWindow):
         if self.last_checked:
             self.last_checked.setChecked(False)
             self.last_checked = None
+
+
 
 
 app = QApplication()
