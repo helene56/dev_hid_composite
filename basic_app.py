@@ -342,7 +342,7 @@ class MainWindow(QMainWindow):
             event.accept()
             if keycode == Qt.Key_Backspace:
                 self.macro_setting_text = self.macro_setting_text[:-1]
-            if keycode == Qt.Key_Return:
+            elif keycode == Qt.Key_Return:
                 btn = self.group.button(self.last_checked_id)
                 self.group.setExclusive(False)
                 btn.setChecked(False)
