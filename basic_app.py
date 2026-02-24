@@ -17,6 +17,13 @@ def toggle_led_on():
     # d.close()
     print("led on")
 
+def send_macro_cmd(cmd):
+    cmd = cmd.encode("utf-8")
+    print(f"send command {cmd}")
+    msg = b"\x02" + cmd.ljust(64, b"\x00")
+    print(f"final message: {msg!r}")      # shows b'\x02...'
+    print(f"final message: {msg.hex()}")  # shows hex string
+
 
 
 class MainWindow(QMainWindow):
@@ -26,10 +33,10 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("hello world app")
         self.keys = [QPushButton(str(i), self) for i in range(1,10)]
         self.group = QButtonGroup(self)
-        self.group.setExclusive(False) 
+        self.group.setExclusive(True) 
         self.last_checked = None
         self.last_checked_id = 0
-        qt_keys = [Qt.Key_1, Qt.Key_2, Qt.Key_3, Qt.Key_4, Qt.Key_5, Qt.Key_6, Qt.Key_7, Qt.Key_8, Qt.Key_9]
+        self.macro_setting_text = ""
         container = QWidget()
         container.setStyleSheet("background: #f6f2fa;")
         self.setCentralWidget(container)
@@ -100,10 +107,9 @@ class MainWindow(QMainWindow):
                 key.setMaximumSize(btn_size, btn_size)
                 key.setStyleSheet(key_style)
                 key.setCheckable(True)
-                # key.toggled.connect(self.on_toggle)
-
+                # Keep buttons from stealing keyboard focus so space/letters reach the window
+                key.setFocusPolicy(Qt.NoFocus)
                 
-
                 shadow = QGraphicsDropShadowEffect()
                 shadow.setBlurRadius(18)
                 shadow.setOffset(0, 4)
@@ -311,20 +317,44 @@ class MainWindow(QMainWindow):
             self.last_checked = btn
             self.last_checked_id = btn_id
             print(f"Pressed index: {btn_id}")
+            # Return keyboard focus to the window after a mouse click on a button
+            self.setFocus()
+            if self.macro_setting_text:
+                send_macro_cmd(self.macro_setting_text)
+                self.macro_setting_text = ""
             
             
         # optional: do something when unchecked as well
 
     def keyPressEvent(self, event):
         if self.listen_for_key:
+            # disable button/key focus
+            for btn in self.group.buttons():
+                btn.setFocusPolicy(Qt.NoFocus)
+
             if event.isAutoRepeat():
                 return
             keycode = event.key()
-            print(keycode, type(keycode))  # e.g. 65 <class 'int'>
-            print(hex(keycode))
-            print(chr(keycode))
+            # print(event.text())
+            # print(keycode, type(keycode))  # e.g. 65 <class 'int'>
+            # print(hex(keycode))      
+            # print(chr(keycode))
             event.accept()
-            self.key_cell_list[self.last_checked_id - 1].setText(chr(keycode))
+            if keycode == Qt.Key_Backspace:
+                self.macro_setting_text = self.macro_setting_text[:-1]
+            if keycode == Qt.Key_Return:
+                btn = self.group.button(self.last_checked_id)
+                self.group.setExclusive(False)
+                btn.setChecked(False)
+                self.group.setExclusive(True)
+                self.listen_for_key = False
+                
+                send_macro_cmd(self.macro_setting_text)
+                self.macro_setting_text = ""
+                return
+            else:
+                self.macro_setting_text += event.text()
+            self.key_cell_list[self.last_checked_id - 1].setText(self.macro_setting_text)
 
     def handle_led_toggle(self, checked):
         # Purely visual toggle; hook up hardware control here if needed.
