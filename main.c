@@ -180,13 +180,11 @@ static void send_hid_report(uint8_t report_id, uint32_t btn)
     // send button presses on the rising edge, send button release on the falling edge
     // nothing happens inbetween
     static bool last_btn = false;  // edge tracking
-    // use to avoid send multiple consecutive zero report for keyboard
-    // static bool has_keyboard_key = false;
     int modifier = 0;
-    // TODO: to allow multipress
-    // On rising edge: send the macro once and record press_time = board_millis().
-    // While the button stays down: after an initial delay (e.g., 400 ms), trigger the macro every repeat interval (e.g., 50–100 ms).
-    // On falling edge: send one release and reset the timer.
+    static uint32_t press_time = 0;
+    static uint32_t interval_time = 400;
+    static bool inital_delay_set = false;
+
     if (btn && !last_btn)
     {
         uint8_t keycode[6] = {0};
@@ -200,15 +198,6 @@ static void send_hid_report(uint8_t report_id, uint32_t btn)
                 
                 if (rc)
                 {
-                    // if (r == 2 && c == 0)
-                    // {
-                    //     modifier = KEYBOARD_MODIFIER_LEFTCTRL;
-                    // }
-                    // else if (r == 2 && c == 2)
-                    // {
-                    //     modifier = KEYBOARD_MODIFIER_LEFTCTRL;
-                    // }
-                    // keycode[0] = mapped_keys[r][c][0];
                     for (int i = 0; i < KEY_LEN-1; i++)
                     {
                         keycodestr[i] = mapped_keys[r][c][i];
@@ -228,31 +217,32 @@ static void send_hid_report(uint8_t report_id, uint32_t btn)
             while (!tud_hid_ready()) tud_task();
             tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, NULL); // release
 
-            // while (!tud_hid_ready()) tud_task();      // ensure previous finished
-            // tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, NULL); // optional release
-            // has_keyboard_key = true;
-                // brief release so the host sees a new keystroke
-            // while (!tud_hid_ready()) tud_task();
-
-            // tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, NULL);
-            // tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, NULL); // release
         }
+        press_time = board_millis();
 
-        // tud_hid_keyboard_report(REPORT_ID_KEYBOARD, modifier, keycode);
-        // has_keyboard_key = true;
     }
     if (!btn && last_btn) {         // falling edge: ensure release
         tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, NULL);
+        // reset timer
+        press_time = 0;
+        interval_time = 400;
+        inital_delay_set = false;
     }
 
     last_btn = btn;
-    // else
-    // {
-    //     // send empty key report if previously has key pressed
-    //     if (has_keyboard_key)
-    //         tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, NULL);
-    //     has_keyboard_key = false;
-    // }
+    if (inital_delay_set)
+    {
+        // repeat every 10 ms
+        interval_time = 10;
+    }
+    if (last_btn && board_millis() - press_time >= interval_time)
+    {
+
+        last_btn = !last_btn;
+        inital_delay_set = true;
+    }
+
+
 }
 
 // Every 10ms, we will sent 1 report for each HID profile (keyboard, mouse etc ..)
