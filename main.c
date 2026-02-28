@@ -68,10 +68,18 @@ static enum col col_arr[] = {COLA, COLB, COLC};
 
 static volatile uint8_t row_mask = 0;
 static volatile uint8_t col_state[3] = {0, 0, 0};
-// mapped_keys can hold 100 characters
-uint8_t mapped_keys[3][3][100] = {HID_KEY_0, HID_KEY_1, HID_KEY_2,
-                                  HID_KEY_3, HID_KEY_4, HID_KEY_5,
-                                  HID_KEY_C, HID_KEY_7, HID_KEY_V};
+// mapped_keys can hold 20 characters
+#define KEY_LEN 20
+uint8_t mapped_keys[3][3][KEY_LEN] = {
+    { { HID_KEY_H, HID_KEY_E, HID_KEY_L, HID_KEY_L, HID_KEY_O, HID_KEY_SPACE, HID_KEY_W, HID_KEY_O, HID_KEY_R, HID_KEY_L, HID_KEY_D, HID_KEY_SPACE}, { HID_KEY_1 }, { HID_KEY_2 } },
+    { { HID_KEY_3 }, { HID_KEY_4 }, { HID_KEY_5 } },
+    { { HID_KEY_C }, { HID_KEY_7 }, { HID_KEY_V } }
+};
+
+
+// uint8_t mapped_keys[3][3] = {HID_KEY_0, HID_KEY_1, HID_KEY_2,
+//                                   HID_KEY_3, HID_KEY_4, HID_KEY_5,
+//                                   HID_KEY_C, HID_KEY_7, HID_KEY_V};
 
 int current_col_idx = 0;
 
@@ -169,14 +177,20 @@ static void send_hid_report(uint8_t report_id, uint32_t btn)
     // skip if hid is not ready yet
     if (!tud_hid_ready())
         return;
-
+    // send button presses on the rising edge, send button release on the falling edge
+    // nothing happens inbetween
+    static bool last_btn = false;  // edge tracking
     // use to avoid send multiple consecutive zero report for keyboard
-    static bool has_keyboard_key = false;
+    // static bool has_keyboard_key = false;
     int modifier = 0;
-
-    if (btn)
+    // TODO: to allow multipress
+    // On rising edge: send the macro once and record press_time = board_millis().
+    // While the button stays down: after an initial delay (e.g., 400 ms), trigger the macro every repeat interval (e.g., 50–100 ms).
+    // On falling edge: send one release and reset the timer.
+    if (btn && !last_btn)
     {
         uint8_t keycode[6] = {0};
+        uint8_t keycodestr[KEY_LEN] = {0};
 
         for (int r = 0; r < 3; r++)
         {
@@ -186,30 +200,59 @@ static void send_hid_report(uint8_t report_id, uint32_t btn)
                 
                 if (rc)
                 {
-                    if (r == 2 && c == 0)
+                    // if (r == 2 && c == 0)
+                    // {
+                    //     modifier = KEYBOARD_MODIFIER_LEFTCTRL;
+                    // }
+                    // else if (r == 2 && c == 2)
+                    // {
+                    //     modifier = KEYBOARD_MODIFIER_LEFTCTRL;
+                    // }
+                    // keycode[0] = mapped_keys[r][c][0];
+                    for (int i = 0; i < KEY_LEN-1; i++)
                     {
-                        modifier = KEYBOARD_MODIFIER_LEFTCTRL;
+                        keycodestr[i] = mapped_keys[r][c][i];
                     }
-                    else if (r == 2 && c == 2)
-                    {
-                        modifier = KEYBOARD_MODIFIER_LEFTCTRL;
-                    }
-                    keycode[0] = mapped_keys[r][c];
+                    
                 }
                     
             }
         }
 
-        tud_hid_keyboard_report(REPORT_ID_KEYBOARD, modifier, keycode);
-        has_keyboard_key = true;
+        for (int i = 0; i< KEY_LEN-1 && keycodestr[i]; i++)
+        {
+            keycode[0] = keycodestr[i];
+            printf("keystroke: %d\n", keycode[0]);
+            while (!tud_hid_ready()) tud_task();
+            tud_hid_keyboard_report(REPORT_ID_KEYBOARD, modifier, keycode);
+            while (!tud_hid_ready()) tud_task();
+            tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, NULL); // release
+
+            // while (!tud_hid_ready()) tud_task();      // ensure previous finished
+            // tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, NULL); // optional release
+            // has_keyboard_key = true;
+                // brief release so the host sees a new keystroke
+            // while (!tud_hid_ready()) tud_task();
+
+            // tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, NULL);
+            // tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, NULL); // release
+        }
+
+        // tud_hid_keyboard_report(REPORT_ID_KEYBOARD, modifier, keycode);
+        // has_keyboard_key = true;
     }
-    else
-    {
-        // send empty key report if previously has key pressed
-        if (has_keyboard_key)
-            tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, NULL);
-        has_keyboard_key = false;
+    if (!btn && last_btn) {         // falling edge: ensure release
+        tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, NULL);
     }
+
+    last_btn = btn;
+    // else
+    // {
+    //     // send empty key report if previously has key pressed
+    //     if (has_keyboard_key)
+    //         tud_hid_keyboard_report(REPORT_ID_KEYBOARD, 0, NULL);
+    //     has_keyboard_key = false;
+    // }
 }
 
 // Every 10ms, we will sent 1 report for each HID profile (keyboard, mouse etc ..)
@@ -272,30 +315,30 @@ uint16_t tud_hid_get_report_cb(uint8_t instance, uint8_t report_id, hid_report_t
 }
 
 
-void map_assign_keys(uint8_t const *macro_cmd)
-{
-    uint8_t key_id = macro_cmd[0];
-    // what if macro_cmd is empty?
-    const uint8_t *macro_str = &macro_cmd[1];
-    uint row =  key_id  % 3;
-    uint col = (key_id - 1) % 3;
-    // copy the macro_str to be used as the key macro into the mapped_key
-    for (int i = 0; i < 99; i++)
-    {
+// void map_assign_keys(uint8_t const *macro_cmd)
+// {
+//     uint8_t key_id = macro_cmd[0] -1;
+//     // what if macro_cmd is empty?
+//     const uint8_t *macro_str = &macro_cmd[1];
+//     uint row =  key_id  % 3;
+//     uint col = (key_id - 1) % 3;
+//     // copy the macro_str to be used as the key macro into the mapped_key
+//     for (int i = 0; i < KEY_LEN-1; i++)
+//     {
         
-        mapped_keys[row][col][i] = *macro_str;
+//         mapped_keys[row][col][i] = *macro_str;
         
-        if (!*macro_str)
-        {
-            break;
-        }
-        // move to the next char
-        macro_str++;
-    }
-    // safeguard set last val to nullbyte terminator
-    mapped_keys[row][col][99] = 0;
+//         if (!*macro_str)
+//         {
+//             break;
+//         }
+//         // move to the next char
+//         macro_str++;
+//     }
+//     // safeguard set last val to nullbyte terminator
+//     mapped_keys[row][col][KEY_LEN-1] = 0;
 
-}
+// }
 
 
 // Invoked when received SET_REPORT control request or
@@ -343,7 +386,7 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id, hid_report_type_
 
             uint8_t const cmd = buffer[1];
             printf("command used: %d\n", cmd);
-            map_assign_keys(buffer + 1);
+            // map_assign_keys(buffer + 1);
 
             // if (cmd == 0x02)
             // {
@@ -351,12 +394,12 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id, hid_report_type_
             //     blink_interval_ms = 0;
             //     board_led_write(true);
             // }
-            // else if (cmd == 0x03)
-            // {
-            //     // Capslock On: disable blink, turn led on
-            //     blink_interval_ms = 0;
-            //     board_led_write(false);
-            // }
+            if (cmd == 0x03)
+            {
+                // Capslock On: disable blink, turn led on
+                blink_interval_ms = 0;
+                board_led_write(false);
+            }
             // else if (cmd == 0x41) // A
             // {
             //     mapped_keys[0][0] = HID_KEY_A;
