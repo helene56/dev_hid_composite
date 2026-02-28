@@ -17,12 +17,22 @@ def toggle_led_on():
     # d.close()
     print("led on")
 
-def send_macro_cmd(cmd):
+def send_macro_cmd(cmd, key_id):
     cmd = cmd.encode("utf-8")
+    key_id_b = key_id.to_bytes(1, "big") 
     print(f"send command {cmd}")
-    msg = b"\x02" + cmd.ljust(64, b"\x00")
+    print(f"key id: {key_id}")
+    # first byte is the key_id
+    # rest is the keys assigned
+    msg = key_id_b + cmd.ljust(64, b"\x00")
     print(f"final message: {msg!r}")      # shows b'\x02...'
     print(f"final message: {msg.hex()}")  # shows hex string
+    d = hid.device()
+    d.open(0xCAFE, 0x4006)
+    d.write(msg)
+    d.close()
+    
+
 
 
 
@@ -320,7 +330,7 @@ class MainWindow(QMainWindow):
             # Return keyboard focus to the window after a mouse click on a button
             self.setFocus()
             if self.macro_setting_text:
-                send_macro_cmd(self.macro_setting_text)
+                send_macro_cmd(self.macro_setting_text, btn_id)
                 self.macro_setting_text = ""
             
             
@@ -349,7 +359,7 @@ class MainWindow(QMainWindow):
                 self.group.setExclusive(True)
                 self.listen_for_key = False
                 
-                send_macro_cmd(self.macro_setting_text)
+                send_macro_cmd(self.macro_setting_text, self.last_checked_id)
                 self.macro_setting_text = ""
                 return
             else:
