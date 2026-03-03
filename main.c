@@ -180,7 +180,7 @@ int main(void)
     while (1)
     {
         tud_task(); // tinyusb device task
-        led_blinking_task();
+        // led_blinking_task();
 
         scan_btn_matrix();
         hid_task();
@@ -446,36 +446,30 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id, hid_report_type_
             if (bufsize < 1)
                 return;
 
-            uint8_t const cmd = buffer[1];
-            printf("command used: %d\n", cmd);
-            map_assign_keys(buffer);
-
-            // if (cmd == 0x02)
-            // {
-            //     // Capslock On: disable blink, turn led on
-            //     blink_interval_ms = 0;
-            //     board_led_write(true);
-            // }
-            if (cmd == 0x03)
+            uint8_t const key_id = buffer[1];
+            uint8_t const app_cmd = buffer[2];
+            printf("key id used: %d\n", key_id);
+            if (key_id == 0)
             {
-                // Capslock On: disable blink, turn led on
+                // Capslock On: disable blink, turn led on5
                 blink_interval_ms = 0;
-                board_led_write(false);
+                if (app_cmd == 0x02)
+                {
+                    board_led_write(true);
+                }
+                else
+                {
+                    board_led_write(false);
+                }
+                
+
             }
-            // else if (cmd == 0x41) // A
-            // {
-            //     mapped_keys[0][0] = HID_KEY_A;
-            // }
-            // else if (cmd == 0x30) // 0
-            // {
-            //     mapped_keys[0][0] = HID_KEY_0;
-            // }
             else
             {
-                // Caplocks Off: back to normal blink
-                board_led_write(false);
-                blink_interval_ms = BLINK_MOUNTED;
+                map_assign_keys(buffer);
             }
+            
+           
         }
     }
 }
