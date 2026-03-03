@@ -70,12 +70,63 @@ static volatile uint8_t row_mask = 0;
 static volatile uint8_t col_state[3] = {0, 0, 0};
 // mapped_keys can hold 20 characters
 #define KEY_LEN 20
-uint8_t mapped_keys[3][3][KEY_LEN] = {
-    { { HID_KEY_H, HID_KEY_E, HID_KEY_L, HID_KEY_L, HID_KEY_O, HID_KEY_SPACE, HID_KEY_W, HID_KEY_O, HID_KEY_R, HID_KEY_L, HID_KEY_D, HID_KEY_SPACE}, { HID_KEY_1 }, { HID_KEY_2 } },
-    { { HID_KEY_3 }, { HID_KEY_4 }, { HID_KEY_5 } },
-    { { HID_KEY_C }, { HID_KEY_7 }, { HID_KEY_V } }
+
+typedef struct {
+    // i need to have a modifier for each key though...
+    uint8_t shift[KEY_LEN]; // start with shift as modifier, at some point maybe make it a flexible modifier?
+    uint8_t keys[KEY_LEN];
+} KeyCell;
+
+
+KeyCell mapped_keys[3][3] =
+{
+    {
+        {
+            { 0 },
+            { HID_KEY_H, HID_KEY_E, HID_KEY_L, HID_KEY_L, HID_KEY_O,
+              HID_KEY_SPACE, HID_KEY_W, HID_KEY_O, HID_KEY_R, HID_KEY_L,
+              HID_KEY_D, HID_KEY_SPACE }
+        },
+        {
+            { 0 },
+            { HID_KEY_1 }
+        },
+        {
+            { 0 },
+            { HID_KEY_2 }
+        }
+    },
+    {
+        {
+            { 0 },
+            { HID_KEY_3 }
+        },
+        {
+            { 0 },
+            { HID_KEY_4 }
+        },
+        {
+            { 0 },
+            { HID_KEY_5 }
+        }
+    },
+    {
+        {
+            { 0 },
+            { HID_KEY_C }
+        },
+        {
+            { 0 },
+            { HID_KEY_7 }
+        },
+        {
+            { 0 },
+            { HID_KEY_V }
+        }
+    }
 };
 
+uint8_t const conv_table[128][2] =  { HID_ASCII_TO_KEYCODE };
 
 // uint8_t mapped_keys[3][3] = {HID_KEY_0, HID_KEY_1, HID_KEY_2,
 //                                   HID_KEY_3, HID_KEY_4, HID_KEY_5,
@@ -180,6 +231,8 @@ static void send_hid_report(uint8_t report_id, uint32_t btn)
     // send button presses on the rising edge, send button release on the falling edge
     // nothing happens inbetween
     static bool last_btn = false;  // edge tracking
+    // TODO
+    // I need to figure out how to allow for a modifer value
     int modifier = 0;
     static uint32_t press_time = 0;
     static uint32_t interval_time = 400;
@@ -189,6 +242,7 @@ static void send_hid_report(uint8_t report_id, uint32_t btn)
     {
         uint8_t keycode[6] = {0};
         uint8_t keycodestr[KEY_LEN] = {0};
+        uint8_t key_modifiers[KEY_LEN] = {0};
 
         for (int r = 0; r < 3; r++)
         {
@@ -200,7 +254,11 @@ static void send_hid_report(uint8_t report_id, uint32_t btn)
                 {
                     for (int i = 0; i < KEY_LEN-1; i++)
                     {
-                        keycodestr[i] = mapped_keys[r][c][i];
+                        keycodestr[i] = mapped_keys[r][c].keys[i];
+                        if (mapped_keys[r][c].shift[i])
+                        {
+                            key_modifiers[i] = KEYBOARD_MODIFIER_LEFTSHIFT;
+                        }
                     }
                     
                 }
@@ -211,6 +269,8 @@ static void send_hid_report(uint8_t report_id, uint32_t btn)
         for (int i = 0; i< KEY_LEN-1 && keycodestr[i]; i++)
         {
             keycode[0] = keycodestr[i];
+            modifier = key_modifiers[i];
+            // maybe the modifer can be combined in the uint8 keycodestr and extracted here?
             printf("keystroke: %d\n", keycode[0]);
             while (!tud_hid_ready()) tud_task();
             tud_hid_keyboard_report(REPORT_ID_KEYBOARD, modifier, keycode);
@@ -305,30 +365,42 @@ uint16_t tud_hid_get_report_cb(uint8_t instance, uint8_t report_id, hid_report_t
 }
 
 
-// void map_assign_keys(uint8_t const *macro_cmd)
-// {
-//     uint8_t key_id = macro_cmd[0] -1;
-//     // what if macro_cmd is empty?
-//     const uint8_t *macro_str = &macro_cmd[1];
-//     uint row =  key_id  % 3;
-//     uint col = (key_id - 1) % 3;
-//     // copy the macro_str to be used as the key macro into the mapped_key
-//     for (int i = 0; i < KEY_LEN-1; i++)
-//     {
+void map_assign_keys(uint8_t const *macro_cmd)
+{
+    macro_cmd++;
+    uint8_t key_id = macro_cmd[0];
+    printf("key id gathered from macro: %d\n", key_id);
+    key_id--;
+    // what if macro_cmd is empty?
+    const uint8_t *macro_str = &macro_cmd[1];
+    uint row =  key_id / 3;
+    uint col =  key_id % 3;
+    printf("row: %d, col: %d\n", row, col);
+    // copy the macro_str to be used as the key macro into the mapped_key
+    for (int i = 0; i < KEY_LEN-1; i++)
+    {
         
-//         mapped_keys[row][col][i] = *macro_str;
         
-//         if (!*macro_str)
-//         {
-//             break;
-//         }
-//         // move to the next char
-//         macro_str++;
-//     }
-//     // safeguard set last val to nullbyte terminator
-//     mapped_keys[row][col][KEY_LEN-1] = 0;
+        printf("key char: %c\n", *macro_str);
+        uint8_t hid_keycode = conv_table[*macro_str][1];
+        printf("keycode: %d\n", hid_keycode);
+        mapped_keys[row][col].keys[i] = hid_keycode;
+        if ( conv_table[*macro_str][0] )
+        {
+            mapped_keys[row][col].shift[i] = 1;
+        }
 
-// }
+        if (!*macro_str)
+        {
+            break;
+        }
+        // move to the next char
+        macro_str++;
+    }
+    // safeguard set last val to nullbyte terminator
+    mapped_keys[row][col].keys[KEY_LEN-1] = 0;
+
+}
 
 
 // Invoked when received SET_REPORT control request or
@@ -376,7 +448,7 @@ void tud_hid_set_report_cb(uint8_t instance, uint8_t report_id, hid_report_type_
 
             uint8_t const cmd = buffer[1];
             printf("command used: %d\n", cmd);
-            // map_assign_keys(buffer + 1);
+            map_assign_keys(buffer);
 
             // if (cmd == 0x02)
             // {
