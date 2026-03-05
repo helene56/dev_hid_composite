@@ -69,7 +69,7 @@ static enum col col_arr[] = {COLA, COLB, COLC};
 static volatile uint8_t row_mask = 0;
 static volatile uint8_t col_state[3] = {0, 0, 0};
 // mapped_keys can hold 20 characters
-#define KEY_LEN 20
+#define KEY_LEN 100
 
 typedef struct {
     uint8_t key_modifier[KEY_LEN];
