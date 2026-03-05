@@ -72,8 +72,7 @@ static volatile uint8_t col_state[3] = {0, 0, 0};
 #define KEY_LEN 20
 
 typedef struct {
-    // i need to have a modifier for each key though...
-    uint8_t shift[KEY_LEN]; // start with shift as modifier, at some point maybe make it a flexible modifier?
+    uint8_t key_modifier[KEY_LEN];
     uint8_t keys[KEY_LEN];
 } KeyCell;
 
@@ -255,10 +254,8 @@ static void send_hid_report(uint8_t report_id, uint32_t btn)
                     for (int i = 0; i < KEY_LEN-1; i++)
                     {
                         keycodestr[i] = mapped_keys[r][c].keys[i];
-                        if (mapped_keys[r][c].shift[i])
-                        {
-                            key_modifiers[i] = KEYBOARD_MODIFIER_LEFTSHIFT;
-                        }
+                        key_modifiers[i] = mapped_keys[r][c].key_modifier[i];
+
                     }
                     
                 }
@@ -380,15 +377,49 @@ void map_assign_keys(uint8_t const *macro_cmd)
     for (int i = 0; i < KEY_LEN-1; i++)
     {
         
-        
+        uint8_t hid_keycode;
+        uint8_t hid_modifier = 0;
         printf("key char: %c\n", *macro_str);
-        uint8_t hid_keycode = conv_table[*macro_str][1];
+        switch (*macro_str)
+        {
+        case 1:
+            hid_keycode = conv_table['a'][1];
+            hid_modifier = KEYBOARD_MODIFIER_LEFTCTRL;
+            break;
+        case 2:
+            hid_keycode = conv_table['b'][1];
+            hid_modifier = KEYBOARD_MODIFIER_LEFTCTRL;
+            break;
+        case 3:
+            hid_keycode = conv_table['c'][1];
+            hid_modifier = KEYBOARD_MODIFIER_LEFTCTRL;
+            break;
+        case 22:
+            hid_keycode = conv_table['v'][1];
+            hid_modifier = KEYBOARD_MODIFIER_LEFTCTRL;
+            break;
+        case 25:
+            hid_keycode = conv_table['y'][1];
+            hid_modifier = KEYBOARD_MODIFIER_LEFTCTRL;
+            break;
+        case 26:
+            hid_keycode = conv_table['z'][1];
+            hid_modifier = KEYBOARD_MODIFIER_LEFTCTRL;
+            break;
+
+        default:
+            hid_keycode = conv_table[*macro_str][1];
+            if ( conv_table[*macro_str][0] )
+            {
+                hid_modifier = KEYBOARD_MODIFIER_LEFTSHIFT;
+            }
+            
+            break;
+        }
+
         printf("keycode: %d\n", hid_keycode);
         mapped_keys[row][col].keys[i] = hid_keycode;
-        if ( conv_table[*macro_str][0] )
-        {
-            mapped_keys[row][col].shift[i] = 1;
-        }
+        mapped_keys[row][col].key_modifier[i] = hid_modifier;
 
         if (!*macro_str)
         {
