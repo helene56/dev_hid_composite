@@ -1,10 +1,13 @@
-from PySide6.QtWidgets import QApplication, QMainWindow, QLabel, QWidget, QGridLayout, QHBoxLayout, QPushButton, QGraphicsDropShadowEffect, QButtonGroup
+from PySide6.QtWidgets import QApplication, QMainWindow, QLabel, QWidget, QGridLayout, QHBoxLayout, QVBoxLayout, QPushButton, QGraphicsDropShadowEffect, QButtonGroup
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QShortcut, QKeySequence, QPixmap
+from PySide6.QtGui import QGuiApplication
 
 import hid
 
-
+# TODO:
+# add a paste button in case of not wanting to manually type a macro
+# add the posibility to edit an exisiting macro instead of replacing it totally
 
 def toggle_led_on(on):
     # d = hid.device()
@@ -191,6 +194,54 @@ class MainWindow(QMainWindow):
         led_shadow.setColor(Qt.black)
         self.led_toggle.setGraphicsEffect(led_shadow)
 
+        self.enter_button = QPushButton("Enter")
+        self.enter_button.setMinimumSize(toggle_w, toggle_h)
+        self.enter_button.setMaximumHeight(toggle_h)
+        self.enter_button.setStyleSheet(
+            "QPushButton {"
+            "  background: #ffffff;"
+            "  border: 1.6px solid #b7c2cc;"
+            "  border-radius: 18px;"
+            "  color: #1f2d3a;"
+            "  font-size: 14px;"
+            "  font-weight: 700;"
+            "  padding: 6px 12px;"
+            "}"
+            "QPushButton:pressed {"
+            "  background: #e6f1f0;"
+            "}"
+        )
+        self.enter_button.clicked.connect(self.handle_enter_button_click)
+        enter_shadow = QGraphicsDropShadowEffect()
+        enter_shadow.setBlurRadius(14)
+        enter_shadow.setOffset(0, 3)
+        enter_shadow.setColor(Qt.black)
+        self.enter_button.setGraphicsEffect(enter_shadow)
+
+        self.paste_button = QPushButton("Paste")
+        self.paste_button.setMinimumSize(toggle_w, toggle_h)
+        self.paste_button.setMaximumHeight(toggle_h)
+        self.paste_button.setStyleSheet(
+            "QPushButton {"
+            "  background: #ffffff;"
+            "  border: 1.6px solid #b7c2cc;"
+            "  border-radius: 18px;"
+            "  color: #1f2d3a;"
+            "  font-size: 14px;"
+            "  font-weight: 700;"
+            "  padding: 6px 12px;"
+            "}"
+            "QPushButton:pressed {"
+            "  background: #e6f1f0;"
+            "}"
+        )
+        self.paste_button.clicked.connect(self.handle_paste_button_click)
+        paste_shadow = QGraphicsDropShadowEffect()
+        paste_shadow.setBlurRadius(14)
+        paste_shadow.setOffset(0, 3)
+        paste_shadow.setColor(Qt.black)
+        self.paste_button.setGraphicsEffect(paste_shadow)
+
         panel_w = grey_cushion * 2 + blue_w + (grey_cushion + img_w if img_w else 0)
         panel_h = grey_cushion * 2 + max(blue_h, img_h)
         key_panel.setFixedSize(panel_w, panel_h)
@@ -316,8 +367,17 @@ class MainWindow(QMainWindow):
 
         map_layout.addWidget(column_wrapper, 0, 0)
 
+        button_column = QWidget()
+        button_column_layout = QVBoxLayout(button_column)
+        button_column_layout.setContentsMargins(0, 0, 0, 0)
+        button_column_layout.setSpacing(10)
+        button_column_layout.addWidget(self.led_toggle)
+        button_column_layout.addWidget(self.enter_button)
+        button_column_layout.addWidget(self.paste_button)
+        button_column_layout.addStretch(1)
+
         layout.addWidget(key_frame, 1, 1, 1, 2, alignment=Qt.AlignCenter)
-        layout.addWidget(self.led_toggle, 1, 3, alignment=Qt.AlignLeft | Qt.AlignVCenter)
+        layout.addWidget(button_column, 1, 3, 2, 1, alignment=Qt.AlignLeft | Qt.AlignTop)
         layout.addWidget(map_box, 2, 1, 1, 2, alignment=Qt.AlignCenter)
         # Example shortcut: on Enter, clear the last toggled button (if any)
         # QShortcut(QKeySequence(Qt.Key_Return), self, activated=self.clear_last_checked)
@@ -393,6 +453,18 @@ class MainWindow(QMainWindow):
         self.led_toggle.setText("LED On" if checked else "LED Off")
         toggle_led_on(checked)
 
+    def handle_enter_button_click(self):
+        self.macro_setting_text += " Enter"
+        self.key_cell_list[self.last_checked_id - 1].setText(self.macro_setting_text)
+        self.macro_code_buffer.append(ord('\r'))
+
+    def handle_paste_button_click(self):
+        clip_text = QGuiApplication.clipboard().text()
+        self.macro_setting_text += clip_text
+        self.key_cell_list[self.last_checked_id - 1].setText(self.macro_setting_text)
+        for char in clip_text:
+            self.macro_code_buffer.append(ord(char))
+        
     def clear_last_checked(self):
         if self.last_checked:
             self.last_checked.setChecked(False)
