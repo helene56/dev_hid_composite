@@ -7,35 +7,35 @@ import hid
 
 
 def toggle_led_on(on):
-    d = hid.device()
-    d.open(0xCAFE, 0x4006)
+    # d = hid.device()
+    # d.open(0xCAFE, 0x4006)
 
-    report_len = 65
-    if on:
-        report = [0x02, 0x00, 0x02] + [0x00] * (report_len - 3)
-    else:
-       report = [0x02, 0x00, 0x00] + [0x00] * (report_len - 3) 
+    # report_len = 65
+    # if on:
+    #     report = [0x02, 0x00, 0x02] + [0x00] * (report_len - 3)
+    # else:
+    #    report = [0x02, 0x00, 0x00] + [0x00] * (report_len - 3) 
     
-    d.write(report)
-    d.close()
+    # d.write(report)
+    # d.close()
     print("led on")
 
-def send_macro_cmd(cmd, key_id):
-    cmd = cmd.encode("utf-8")
+def send_macro_cmd(key_id, buffer):
+    # cmd = cmd.encode("utf-8")
     key_id_b = key_id.to_bytes(1, "big")
     report_id = 0x02
     report_id_b = report_id.to_bytes(1, "big")
-    print(f"send command {cmd}")
+    print(f"send command {buffer}")
     print(f"key id: {key_id}")
     # first byte is the key_id
     # rest is the keys assigned
-    msg = report_id_b + key_id_b + cmd.ljust(64, b"\x00")
+    msg = report_id_b + key_id_b + buffer.ljust(64, b"\x00")
     print(f"final message: {msg!r}")      # shows b'\x02...'
     print(f"final message: {msg.hex()}")  # shows hex string
-    d = hid.device()
-    d.open(0xCAFE, 0x4006)
-    d.write(msg)
-    d.close()
+    # d = hid.device()
+    # d.open(0xCAFE, 0x4006)
+    # d.write(msg)
+    # d.close()
     
 
 
@@ -52,7 +52,8 @@ class MainWindow(QMainWindow):
         self.last_checked = None
         self.last_checked_id = 0
         self.macro_setting_text = ""
-        self.modifiers = {"ctrl": 1, "alt": 4}
+        self.macro_code_buffer = bytearray()
+        self.modifiers = {"Ctrl+C": 1, "alt": 4} # keeping for now but i will make a key pair value on keyboard side instead
         container = QWidget()
         container.setStyleSheet("background: #f6f2fa;")
         self.setCentralWidget(container)
@@ -336,7 +337,7 @@ class MainWindow(QMainWindow):
             # Return keyboard focus to the window after a mouse click on a button
             self.setFocus()
             if self.macro_setting_text:
-                send_macro_cmd(self.macro_setting_text, btn_id)
+                send_macro_cmd(btn_id, self.macro_code_buffer)
                 self.macro_setting_text = ""
             
             
@@ -358,6 +359,7 @@ class MainWindow(QMainWindow):
             event.accept()
             if keycode == Qt.Key_Backspace:
                 self.macro_setting_text = self.macro_setting_text[:-1]
+                self.macro_code_buffer = self.macro_code_buffer[:-1]
             
             elif keycode == Qt.Key_Return:
                 btn = self.group.button(self.last_checked_id)
@@ -366,36 +368,24 @@ class MainWindow(QMainWindow):
                 self.group.setExclusive(True)
                 self.listen_for_key = False
                 
-                send_macro_cmd(self.macro_setting_text, self.last_checked_id)
+                send_macro_cmd(self.last_checked_id, self.macro_code_buffer)
                 self.macro_setting_text = ""
+                self.macro_code_buffer = bytearray()
                 return
             else:
-                # if keycode == Qt.Key_Control:
-                #     self.macro_setting_text += "Ctrl"
-                # elif keycode == Qt.Key_Alt:
-                #     self.macro_setting_text += "Alt"
-                if any(event.matches(k) for k in (QKeySequence.Paste, QKeySequence.Copy, QKeySequence.Cut, QKeySequence.Undo)):
+ 
+                if any(event.matches(k) for k in (QKeySequence.Paste, QKeySequence.Copy, QKeySequence.Cut, QKeySequence.Undo, QKeySequence.SelectAll)):
                     self.macro_setting_text += QKeySequence(event.keyCombination()).toString() + " "
+                    t = event.text()
+                    if t:
+                        self.macro_code_buffer.append(ord(t))
+                    # example for ctrl+c is event.text() = '\x03'
 
-                # if event.matches(QKeySequence.Paste or QKeySequence.Copy or QKeySequence.Undo or QKeySequence.Cut):
-                #     # mods = event.modifiers()
-
-                #     # ctrl  = bool(mods & Qt.ControlModifier)
-                #     # # shift = bool(mods & Qt.ShiftModifier)
-                #     # alt   = bool(mods & Qt.AltModifier)
-                #     # if ctrl:
-                #     #     self.macro_setting_text += "Ctrl"
-                #     # elif alt:
-                #     #     self.macro_setting_text += "Alt"
-                    
-                #     # self.macro_setting_text += f"+ {keycode}"
-                #     # meta  = bool(mods & Qt.MetaModifier)
-                    
-                #     combo = event.keyCombination()
-                #     self.macro_setting_text += QKeySequence(combo).toString()
-                    # print(QKeySequence(combo).toString())
                 else:
                     self.macro_setting_text += event.text()
+                    t = event.text()
+                    if t:
+                        self.macro_code_buffer.append(ord(t))
             self.key_cell_list[self.last_checked_id - 1].setText(self.macro_setting_text)
 
     def handle_led_toggle(self, checked):
