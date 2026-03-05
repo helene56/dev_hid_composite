@@ -98,7 +98,7 @@
 #define CFG_TUD_VENDOR            0
 
 // HID buffer size Should be sufficient to hold ID (if any) + Data
-#define CFG_TUD_HID_EP_BUFSIZE    16
+#define CFG_TUD_HID_EP_BUFSIZE    64
 
 // CDC FIFO/endpoint sizes (full-speed defaults)
 #define CFG_TUD_CDC_RX_BUFSIZE    64
