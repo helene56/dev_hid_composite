@@ -71,7 +71,7 @@ static enum col col_arr[] = {COLA, COLB, COLC};
 static volatile uint8_t row_mask = 0;
 static volatile uint8_t col_state[3] = {0, 0, 0};
 // mapped_keys can hold 20 characters
-#define KEY_LEN 100
+#define KEY_LEN 50
 
 typedef struct {
     uint8_t key_modifier[KEY_LEN];
@@ -138,25 +138,105 @@ int current_col_idx = 0;
 // flash contents
 #define FLASH_TARGET_OFFSET (PICO_FLASH_SIZE_BYTES - FLASH_SECTOR_SIZE)
 
-const uint8_t *flash_bytes = (const uint8_t *)(XIP_BASE + FLASH_TARGET_OFFSET);
+const uint8_t *flash_target_contents = (const uint8_t *)(XIP_BASE + FLASH_TARGET_OFFSET);
+
+#define COUNT_MAGIC 0xA7F3C91E
 
 typedef struct {
     uint32_t magic;
     uint32_t version;
-    KeyCell keys[3][3];
-    uint32_t crc;
-} SavedKeys;
+    uint32_t counter;
+} SavedCount;
 
-SavedKeys key_saved_data = {.magic = 0xA7F3C91E, .version = 1};
+SavedCount count_data = {.counter = 5, .magic = COUNT_MAGIC, .version = 1};
 
-size_t key_saved_data_size = sizeof(key_saved_data) * FLASH_PAGE_SIZE;
+#define pages_needed (sizeof(count_data) + FLASH_PAGE_SIZE - 1) / FLASH_PAGE_SIZE
+uint8_t page_buffer[pages_needed * FLASH_PAGE_SIZE];
+
+void print_buf(const uint8_t *buf, size_t len) 
+{
+    for (size_t i = 0; i < len; ++i) {
+        printf("%02x", buf[i]);
+        if (i % 16 == 15)
+            printf("\n");
+        else
+            printf(" ");
+    }
+}
+
+// This function will be called when it's safe to call flash_range_erase
+static void call_flash_range_erase(void *param) 
+{
+    uint32_t offset = (uint32_t)param;
+    flash_range_erase(offset, FLASH_SECTOR_SIZE);
+}
+
+// This function will be called when it's safe to call flash_range_program
+static void call_flash_range_program(void *param) 
+{
+    uint32_t offset = ((uintptr_t*)param)[0];
+    const uint8_t *data = (const uint8_t *)((uintptr_t*)param)[1];
+    flash_range_program(offset, data, FLASH_PAGE_SIZE);
+}
+
+void init_count_data()
+{
+    // copy the count_data into page buffer
+    memset(page_buffer, 0xFF, FLASH_PAGE_SIZE);
+    memcpy(page_buffer, &count_data, sizeof(count_data));
+    // erase flash
+    int rc = flash_safe_execute(call_flash_range_erase, (void*)FLASH_TARGET_OFFSET, UINT32_MAX);
+    hard_assert(rc == PICO_OK);
+    // program flash
+    uintptr_t params[] = { FLASH_TARGET_OFFSET, (uintptr_t)page_buffer};
+    rc = flash_safe_execute(call_flash_range_program, params, UINT32_MAX);
+    hard_assert(rc == PICO_OK);
+    // read back as a struct
+    printf("Done. Read back target region:\n");
+    print_buf(flash_target_contents, pages_needed * FLASH_PAGE_SIZE);
+}
+
+void read_flash_count()
+{
+    const SavedCount* flash_data = (const SavedCount*)(flash_target_contents);
+    // read flash struct magic
+    if (flash_data->magic == COUNT_MAGIC && flash_data->version == 1)
+    {
+        // valid
+        // copy to ram
+        count_data = *flash_data; // copies the whole struct from flash into ram variable
+        count_data.counter++;
+    }
+    else
+    {
+        count_data.magic = COUNT_MAGIC;
+        count_data.version = 1;
+        count_data.counter = 1;
+
+    }
+
+}
+
+// typedef struct {
+//     uint32_t magic;
+//     uint32_t version;
+//     KeyCell keys[3][3];
+//     uint32_t crc;
+// } SavedKeys;
+
+// SavedKeys key_saved_data = {.magic = 0xA7F3C91E, .version = 1};
+
+// size_t key_saved_data_size = sizeof(key_saved_data);
+
+// #define pages_needed (sizeof(key_saved_data) + FLASH_PAGE_SIZE - 1) / FLASH_PAGE_SIZE
+// uint8_t page_buffer[pages_needed * FLASH_PAGE_SIZE];
 
 void led_blinking_task(void);
 void hid_task(void);
 void scan_btn_matrix(void);
 void custom_cdc_task(void);
-void save_keys(void);
-void init_key_data(void);
+// void save_keys(void);
+// void init_key_data(void);
 
 /*------------- MAIN -------------*/
 int main(void)
@@ -173,7 +253,10 @@ int main(void)
     }
     // let pico sdk use the first cdc interface for std io
     stdio_init_all();
-    init_key_data();
+    read_flash_count();
+    init_count_data();
+    // initialize saved keys
+    // init_key_data();
     // rows
     gpio_init(ROW1);
     gpio_pull_up(ROW1);
@@ -203,6 +286,9 @@ int main(void)
 
         scan_btn_matrix();
         hid_task();
+        print_buf(flash_target_contents, pages_needed * FLASH_PAGE_SIZE);
+        // printf("sizeof(KeyCell): %zu\n", sizeof(KeyCell));
+        // printf("sizeof(SavedKeys): %zu\n", sizeof(SavedKeys));
         // custom_cdc_task();
     }
 }
@@ -642,76 +728,68 @@ void tud_cdc_rx_cb(uint8_t itf)
 }
 
 
-void init_key_data()
-{
-    for (int r = 0; r<3 ;r++)
-    {
-        for (int c = 0; c<3;c++)
-        {
-            for (int i = 0; i<KEY_LEN-1;i++)
-            {
-                // defaults from mapped keys
-                key_saved_data.keys[r][c].key_modifier[i] = 0;
-                key_saved_data.keys[r][c].keys[i] = mapped_keys[r][c].keys[i];
+// void init_key_data()
+// {
+//     for (int r = 0; r<3 ;r++)
+//     {
+//         for (int c = 0; c<3;c++)
+//         {
+//             for (int i = 0; i<KEY_LEN-1;i++)
+//             {
+//                 // defaults from mapped keys
+//                 key_saved_data.keys[r][c].key_modifier[i] = 0;
+//                 key_saved_data.keys[r][c].keys[i] = mapped_keys[r][c].keys[i];
 
-            }
-        }
-    }
-}
+//             }
+//         }
+//     }
 
-
-// This function will be called when it's safe to call flash_range_erase
-static void call_flash_range_erase(void *param) 
-{
-    uint32_t offset = (uint32_t)param;
-    flash_range_erase(offset, FLASH_SECTOR_SIZE);
-}
-
-// This function will be called when it's safe to call flash_range_program
-static void call_flash_range_program(void *param) 
-{
-    uint32_t offset = ((uintptr_t*)param)[0];
-    const uint8_t *data = (const uint8_t *)((uintptr_t*)param)[1];
-    flash_range_program(offset, data, FLASH_PAGE_SIZE);
-}
+//     // initialize page sized buffer for key_saved_data
+//     // initialize with 0
+//     memset(page_buffer, 0xFF, key_saved_data_size);
+//     // copy the data into the buffer
+//     memcpy(page_buffer, &key_saved_data, key_saved_data_size);
+// }
 
 
-void save_keys()
-{
 
-    // uint8_t key_saved_data[FLASH_PAGE_SIZE];
-    // here we should probably save the key data.. after the basic_app has written new keys
-    // Note that a whole number of sectors must be erased at a time.
-    printf("\nErasing target region...\n");
-    // Flash is "execute in place" and so will be in use when any code that is stored in flash runs, e.g. an interrupt handler
-    // or code running on a different core.
-    // Calling flash_range_erase or flash_range_program at the same time as flash is running code would cause a crash.
-    // flash_safe_execute disables interrupts and tries to cooperate with the other core to ensure flash is not in use
-    // See the documentation for flash_safe_execute and its assumptions and limitations
-    int rc = flash_safe_execute(call_flash_range_erase, (void*)FLASH_TARGET_OFFSET, UINT32_MAX);
-    hard_assert(rc == PICO_OK);
-    printf("Done. Read back target region:\n");
-    printf("\nProgramming target region...\n");
-    // read the flash sector
 
-    uintptr_t params[] = { FLASH_TARGET_OFFSET, (uintptr_t)key_saved_data};
-    rc = flash_safe_execute(call_flash_range_program, params, UINT32_MAX);
-    hard_assert(rc == PICO_OK);
-    printf("Done. Read back target region:\n");
+// void save_keys()
+// {
 
-    bool mismatch = false;
-    for (int r = 0; r < 3; r++)
-    {
-        for (int c = 0; c < 3; c++)
-        {
-            for (int i = 0; i < KEY_LEN-1; i++)
-                if (key_saved_data[r][c].keys[i] != flash_target_contents[r][c].keys[i])
-                    mismatch = true;
-        }
+//     // uint8_t key_saved_data[FLASH_PAGE_SIZE];
+//     // here we should probably save the key data.. after the basic_app has written new keys
+//     // Note that a whole number of sectors must be erased at a time.
+//     printf("\nErasing target region...\n");
+//     // Flash is "execute in place" and so will be in use when any code that is stored in flash runs, e.g. an interrupt handler
+//     // or code running on a different core.
+//     // Calling flash_range_erase or flash_range_program at the same time as flash is running code would cause a crash.
+//     // flash_safe_execute disables interrupts and tries to cooperate with the other core to ensure flash is not in use
+//     // See the documentation for flash_safe_execute and its assumptions and limitations
+//     int rc = flash_safe_execute(call_flash_range_erase, (void*)FLASH_TARGET_OFFSET, UINT32_MAX);
+//     hard_assert(rc == PICO_OK);
+//     printf("Done. Read back target region:\n");
+//     printf("\nProgramming target region...\n");
+//     // read the flash sector
+
+//     uintptr_t params[] = { FLASH_TARGET_OFFSET, (uintptr_t)key_saved_data};
+//     rc = flash_safe_execute(call_flash_range_program, params, UINT32_MAX);
+//     hard_assert(rc == PICO_OK);
+//     printf("Done. Read back target region:\n");
+
+//     bool mismatch = false;
+//     for (int r = 0; r < 3; r++)
+//     {
+//         for (int c = 0; c < 3; c++)
+//         {
+//             for (int i = 0; i < KEY_LEN-1; i++)
+//                 if (key_saved_data[r][c].keys[i] != flash_target_contents[r][c].keys[i])
+//                     mismatch = true;
+//         }
             
-    }
-    if (mismatch)
-        printf("Programming failed!\n");
-    else
-        printf("Programming successful!\n");
-}
+//     }
+//     if (mismatch)
+//         printf("Programming failed!\n");
+//     else
+//         printf("Programming successful!\n");
+// }
