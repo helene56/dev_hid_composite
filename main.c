@@ -156,7 +156,7 @@ void hid_task(void);
 void scan_btn_matrix(void);
 void custom_cdc_task(void);
 void save_keys(void);
-void build_keys(void);
+void init_key_data(void);
 
 /*------------- MAIN -------------*/
 int main(void)
@@ -173,7 +173,7 @@ int main(void)
     }
     // let pico sdk use the first cdc interface for std io
     stdio_init_all();
-
+    init_key_data();
     // rows
     gpio_init(ROW1);
     gpio_pull_up(ROW1);
@@ -642,7 +642,7 @@ void tud_cdc_rx_cb(uint8_t itf)
 }
 
 
-void build_keys()
+void init_key_data()
 {
     for (int r = 0; r<3 ;r++)
     {
@@ -650,6 +650,7 @@ void build_keys()
         {
             for (int i = 0; i<KEY_LEN-1;i++)
             {
+                // defaults from mapped keys
                 key_saved_data.keys[r][c].key_modifier[i] = 0;
                 key_saved_data.keys[r][c].keys[i] = mapped_keys[r][c].keys[i];
 
@@ -691,6 +692,7 @@ void save_keys()
     hard_assert(rc == PICO_OK);
     printf("Done. Read back target region:\n");
     printf("\nProgramming target region...\n");
+    // read the flash sector
 
     uintptr_t params[] = { FLASH_TARGET_OFFSET, (uintptr_t)key_saved_data};
     rc = flash_safe_execute(call_flash_range_program, params, UINT32_MAX);
