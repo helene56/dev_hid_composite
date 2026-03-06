@@ -27,6 +27,8 @@
 #include <stdio.h>
 #include <string.h>
 #include "pico/stdlib.h"
+#include "pico/flash.h"
+#include "hardware/flash.h"
 
 #include "bsp/board_api.h"
 #include "tusb.h"
@@ -133,10 +135,28 @@ uint8_t const conv_table[128][2] =  { HID_ASCII_TO_KEYCODE };
 
 int current_col_idx = 0;
 
+// flash contents
+#define FLASH_TARGET_OFFSET (PICO_FLASH_SIZE_BYTES - FLASH_SECTOR_SIZE)
+
+const uint8_t *flash_bytes = (const uint8_t *)(XIP_BASE + FLASH_TARGET_OFFSET);
+
+typedef struct {
+    uint32_t magic;
+    uint32_t version;
+    KeyCell keys[3][3];
+    uint32_t crc;
+} SavedKeys;
+
+SavedKeys key_saved_data = {.magic = 0xA7F3C91E, .version = 1};
+
+size_t key_saved_data_size = sizeof(key_saved_data) * FLASH_PAGE_SIZE;
+
 void led_blinking_task(void);
 void hid_task(void);
 void scan_btn_matrix(void);
 void custom_cdc_task(void);
+void save_keys(void);
+void build_keys(void);
 
 /*------------- MAIN -------------*/
 int main(void)
@@ -421,6 +441,10 @@ void map_assign_keys(uint8_t const *macro_cmd)
         mapped_keys[row][col].keys[i] = hid_keycode;
         mapped_keys[row][col].key_modifier[i] = hid_modifier;
 
+        // // update flash
+        // key_saved_data[row][col].keys[i] = hid_keycode;
+        // key_saved_data[row][col].key_modifier[i] = hid_modifier;
+
         if (!*macro_str)
         {
             break;
@@ -615,4 +639,77 @@ void tud_cdc_rx_cb(uint8_t itf)
         tud_cdc_n_write(itf, (uint8_t const *) "OK\r\n", 4);
         tud_cdc_n_write_flush(itf);
     }
+}
+
+
+void build_keys()
+{
+    for (int r = 0; r<3 ;r++)
+    {
+        for (int c = 0; c<3;c++)
+        {
+            for (int i = 0; i<KEY_LEN-1;i++)
+            {
+                key_saved_data.keys[r][c].key_modifier[i] = 0;
+                key_saved_data.keys[r][c].keys[i] = mapped_keys[r][c].keys[i];
+
+            }
+        }
+    }
+}
+
+
+// This function will be called when it's safe to call flash_range_erase
+static void call_flash_range_erase(void *param) 
+{
+    uint32_t offset = (uint32_t)param;
+    flash_range_erase(offset, FLASH_SECTOR_SIZE);
+}
+
+// This function will be called when it's safe to call flash_range_program
+static void call_flash_range_program(void *param) 
+{
+    uint32_t offset = ((uintptr_t*)param)[0];
+    const uint8_t *data = (const uint8_t *)((uintptr_t*)param)[1];
+    flash_range_program(offset, data, FLASH_PAGE_SIZE);
+}
+
+
+void save_keys()
+{
+
+    // uint8_t key_saved_data[FLASH_PAGE_SIZE];
+    // here we should probably save the key data.. after the basic_app has written new keys
+    // Note that a whole number of sectors must be erased at a time.
+    printf("\nErasing target region...\n");
+    // Flash is "execute in place" and so will be in use when any code that is stored in flash runs, e.g. an interrupt handler
+    // or code running on a different core.
+    // Calling flash_range_erase or flash_range_program at the same time as flash is running code would cause a crash.
+    // flash_safe_execute disables interrupts and tries to cooperate with the other core to ensure flash is not in use
+    // See the documentation for flash_safe_execute and its assumptions and limitations
+    int rc = flash_safe_execute(call_flash_range_erase, (void*)FLASH_TARGET_OFFSET, UINT32_MAX);
+    hard_assert(rc == PICO_OK);
+    printf("Done. Read back target region:\n");
+    printf("\nProgramming target region...\n");
+
+    uintptr_t params[] = { FLASH_TARGET_OFFSET, (uintptr_t)key_saved_data};
+    rc = flash_safe_execute(call_flash_range_program, params, UINT32_MAX);
+    hard_assert(rc == PICO_OK);
+    printf("Done. Read back target region:\n");
+
+    bool mismatch = false;
+    for (int r = 0; r < 3; r++)
+    {
+        for (int c = 0; c < 3; c++)
+        {
+            for (int i = 0; i < KEY_LEN-1; i++)
+                if (key_saved_data[r][c].keys[i] != flash_target_contents[r][c].keys[i])
+                    mismatch = true;
+        }
+            
+    }
+    if (mismatch)
+        printf("Programming failed!\n");
+    else
+        printf("Programming successful!\n");
 }
