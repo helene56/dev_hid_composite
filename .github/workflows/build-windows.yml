@@ -28,7 +28,6 @@ jobs:
         run: |
           git clone --recursive https://github.com/trezor/cython-hidapi.git
           Set-Location cython-hidapi
-          python setup.py build
           python -m pip install . --no-build-isolation
           python -c "import hid; print(hid.__file__)"
 
