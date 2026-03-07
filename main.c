@@ -90,7 +90,55 @@ KeyCell mapped_keys[3][3] =
         },
         {
             { 0 },
-            { HID_KEY_1 }
+            { HID_KEY_1, HID_KEY_2, HID_KEY_3 }
+        },
+        {
+            { 0 },
+            { HID_KEY_2 }
+        }
+    },
+    {
+        {
+            { 0 },
+            { HID_KEY_3 }
+        },
+        {
+            { 0 },
+            { HID_KEY_4 }
+        },
+        {
+            { 0 },
+            { HID_KEY_5 }
+        }
+    },
+    {
+        {
+            { 0 },
+            { HID_KEY_C }
+        },
+        {
+            { 0 },
+            { HID_KEY_7 }
+        },
+        {
+            { 0 },
+            { HID_KEY_V }
+        }
+    }
+};
+
+KeyCell default_mapped_keys[3][3] =
+{
+    {
+        {
+            { 0 },
+            { HID_KEY_H, HID_KEY_E, HID_KEY_L, HID_KEY_L, HID_KEY_O,
+              HID_KEY_SPACE, HID_KEY_W, HID_KEY_O, HID_KEY_R, HID_KEY_L,
+              HID_KEY_D, HID_KEY_SPACE }
+        },
+        {
+            { 0 },
+            { HID_KEY_1, HID_KEY_2, HID_KEY_3 }
         },
         {
             { 0 },
@@ -141,16 +189,25 @@ int current_col_idx = 0;
 const uint8_t *flash_target_contents = (const uint8_t *)(XIP_BASE + FLASH_TARGET_OFFSET);
 
 #define COUNT_MAGIC 0xA7F3C91E
+// typedef struct {
+//     uint32_t magic;
+//     uint32_t version;
+//     uint32_t counter;
+// } SavedCount;
+
+// SavedCount count_data = {.counter = 5, .magic = COUNT_MAGIC, .version = 1};
+
 
 typedef struct {
     uint32_t magic;
     uint32_t version;
-    uint32_t counter;
-} SavedCount;
+    KeyCell keys[3][3];
+} SavedKeys;
 
-SavedCount count_data = {.counter = 5, .magic = COUNT_MAGIC, .version = 1};
+SavedKeys persistent_keys = {.magic = COUNT_MAGIC, .version = 1};
 
-#define pages_needed (sizeof(count_data) + FLASH_PAGE_SIZE - 1) / FLASH_PAGE_SIZE
+
+#define pages_needed (sizeof(persistent_keys) + FLASH_PAGE_SIZE - 1) / FLASH_PAGE_SIZE
 uint8_t page_buffer[pages_needed * FLASH_PAGE_SIZE];
 
 void print_buf(const uint8_t *buf, size_t len) 
@@ -176,14 +233,57 @@ static void call_flash_range_program(void *param)
 {
     uint32_t offset = ((uintptr_t*)param)[0];
     const uint8_t *data = (const uint8_t *)((uintptr_t*)param)[1];
-    flash_range_program(offset, data, FLASH_PAGE_SIZE);
+    flash_range_program(offset, data, pages_needed * FLASH_PAGE_SIZE);
+}
+
+
+
+void init_default_key_data()
+{
+    // init to 0
+    memcpy(persistent_keys.keys, mapped_keys, sizeof(persistent_keys.keys));
+    // sleep_ms(5000);
+
+    // memset(persistent_keys.keys, 0, sizeof(persistent_keys.keys));
+    // for (int r = 0; r<3 ;r++)
+    // {
+    //     for (int c = 0; c<3;c++)
+    //     {
+    //         for (int i = 0; i<KEY_LEN;i++)
+    //         {
+    //             // defaults from mapped keys
+    //             // if (!mapped_keys[r][c].keys[i])
+    //             // {
+    //             //     break;
+    //             // }
+    //             persistent_keys.keys[r][c].keys[i] = mapped_keys[r][c].keys[i];
+
+    //         }
+    //     }
+    // }
+    
+}
+
+static void load_mapped_keys_from_persistent(void)
+{
+    for (int r = 0; r < 3; r++)
+    {
+        for (int c = 0; c < 3; c++)
+        {
+            for (int i = 0; i < KEY_LEN; i++)
+            {
+                mapped_keys[r][c].keys[i] = persistent_keys.keys[r][c].keys[i];
+                mapped_keys[r][c].key_modifier[i] = persistent_keys.keys[r][c].key_modifier[i];
+            }
+        }
+    }
 }
 
 void init_count_data()
 {
     // copy the count_data into page buffer
-    memset(page_buffer, 0xFF, FLASH_PAGE_SIZE);
-    memcpy(page_buffer, &count_data, sizeof(count_data));
+    memset(page_buffer, 0xFF, pages_needed * FLASH_PAGE_SIZE);
+    memcpy(page_buffer, &persistent_keys, sizeof(persistent_keys));
     // erase flash
     int rc = flash_safe_execute(call_flash_range_erase, (void*)FLASH_TARGET_OFFSET, UINT32_MAX);
     hard_assert(rc == PICO_OK);
@@ -198,38 +298,33 @@ void init_count_data()
 
 void read_flash_count()
 {
-    const SavedCount* flash_data = (const SavedCount*)(flash_target_contents);
+    const SavedKeys* flash_data = (const SavedKeys*)(flash_target_contents);
     // read flash struct magic
-    if (flash_data->magic == COUNT_MAGIC && flash_data->version == 1)
+    if (flash_data->magic == COUNT_MAGIC && flash_data->version == 2)
     {
         // valid
         // copy to ram
-        count_data = *flash_data; // copies the whole struct from flash into ram variable
-        count_data.counter++;
+        persistent_keys = *flash_data; // copies the whole struct from flash into ram variable
+        // load_mapped_keys_from_persistent();
+        // count_data.counter++;
     }
     else
     {
-        count_data.magic = COUNT_MAGIC;
-        count_data.version = 1;
-        count_data.counter = 1;
+
+        persistent_keys.magic = COUNT_MAGIC;
+        init_default_key_data();
+        persistent_keys.version = 2;
+        // load_mapped_keys_from_persistent();
+        init_count_data();
+        // count_data.counter = 1;
 
     }
-
 }
 
-// typedef struct {
-//     uint32_t magic;
-//     uint32_t version;
-//     KeyCell keys[3][3];
-//     uint32_t crc;
-// } SavedKeys;
 
-// SavedKeys key_saved_data = {.magic = 0xA7F3C91E, .version = 1};
 
-// size_t key_saved_data_size = sizeof(key_saved_data);
 
-// #define pages_needed (sizeof(key_saved_data) + FLASH_PAGE_SIZE - 1) / FLASH_PAGE_SIZE
-// uint8_t page_buffer[pages_needed * FLASH_PAGE_SIZE];
+
 
 void led_blinking_task(void);
 void hid_task(void);
@@ -253,8 +348,15 @@ int main(void)
     }
     // let pico sdk use the first cdc interface for std io
     stdio_init_all();
-    read_flash_count();
-    init_count_data();
+    KeyCell test = {
+        { 0 },
+        { HID_KEY_H, HID_KEY_E, HID_KEY_L, HID_KEY_L, HID_KEY_O }
+    };
+
+
+
+    // read_flash_count();
+    // init_count_data();
     // initialize saved keys
     // init_key_data();
     // rows
@@ -286,7 +388,11 @@ int main(void)
 
         scan_btn_matrix();
         hid_task();
-        print_buf(flash_target_contents, pages_needed * FLASH_PAGE_SIZE);
+        
+        // print_buf(flash_target_contents, pages_needed * FLASH_PAGE_SIZE);
+        printf("default 1: %d\n", mapped_keys[0][0].keys[0]);
+        printf("default key 1: %d\n", default_mapped_keys[0][0].keys[0]);
+        printf("test.keys[0] = %u\n", test.keys[0]);
         // printf("sizeof(KeyCell): %zu\n", sizeof(KeyCell));
         // printf("sizeof(SavedKeys): %zu\n", sizeof(SavedKeys));
         // custom_cdc_task();
@@ -479,6 +585,8 @@ void map_assign_keys(uint8_t const *macro_cmd)
     uint row =  key_id / 3;
     uint col =  key_id % 3;
     printf("row: %d, col: %d\n", row, col);
+    // memset(&persistent_keys.keys[row][col], 0, sizeof(persistent_keys.keys[row][col]));
+    // memset(&mapped_keys[row][col], 0, sizeof(mapped_keys[row][col]));
     // copy the macro_str to be used as the key macro into the mapped_key
     for (int i = 0; i < KEY_LEN-1; i++)
     {
@@ -524,12 +632,13 @@ void map_assign_keys(uint8_t const *macro_cmd)
         }
 
         printf("keycode: %d\n", hid_keycode);
+        // update flash
+        // persistent_keys.keys[row][col].keys[i] = hid_keycode;
+        // persistent_keys.keys[row][col].key_modifier[i] = hid_modifier;
+
         mapped_keys[row][col].keys[i] = hid_keycode;
         mapped_keys[row][col].key_modifier[i] = hid_modifier;
 
-        // // update flash
-        // key_saved_data[row][col].keys[i] = hid_keycode;
-        // key_saved_data[row][col].key_modifier[i] = hid_modifier;
 
         if (!*macro_str)
         {
@@ -540,6 +649,8 @@ void map_assign_keys(uint8_t const *macro_cmd)
     }
     // safeguard set last val to nullbyte terminator
     mapped_keys[row][col].keys[KEY_LEN-1] = 0;
+    // persistent_keys.keys[row][col].keys[KEY_LEN-1] = 0;
+    // init_count_data();
 
 }
 
@@ -728,28 +839,6 @@ void tud_cdc_rx_cb(uint8_t itf)
 }
 
 
-// void init_key_data()
-// {
-//     for (int r = 0; r<3 ;r++)
-//     {
-//         for (int c = 0; c<3;c++)
-//         {
-//             for (int i = 0; i<KEY_LEN-1;i++)
-//             {
-//                 // defaults from mapped keys
-//                 key_saved_data.keys[r][c].key_modifier[i] = 0;
-//                 key_saved_data.keys[r][c].keys[i] = mapped_keys[r][c].keys[i];
-
-//             }
-//         }
-//     }
-
-//     // initialize page sized buffer for key_saved_data
-//     // initialize with 0
-//     memset(page_buffer, 0xFF, key_saved_data_size);
-//     // copy the data into the buffer
-//     memcpy(page_buffer, &key_saved_data, key_saved_data_size);
-// }
 
 
 
