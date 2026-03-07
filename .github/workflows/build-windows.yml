@@ -18,16 +18,51 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
+        shell: pwsh
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Build exe
+      - name: Download HIDAPI
+        shell: pwsh
         run: |
-          pyinstaller --noconfirm --clean --windowed --onedir --name MyHidApp --collect-all PySide6 --add-data "pico-pinout-1-green.jpg;." --add-binary "libhidapi-0.dll;." basic_app.py
+          $hidapiVersion = "0.15.0"
+          $zipUrl = "https://github.com/libusb/hidapi/releases/download/hidapi-$hidapiVersion/hidapi-win.zip"
+
+          Invoke-WebRequest -Uri $zipUrl -OutFile "hidapi-win.zip"
+          Expand-Archive -Path "hidapi-win.zip" -DestinationPath "hidapi"
+
+          Write-Host "Downloaded HIDAPI contents:"
+          Get-ChildItem -Recurse "hidapi"
+
+      - name: Build exe
+        shell: pwsh
+        run: |
+          $hidDll = Get-ChildItem -Recurse "hidapi" -Filter *.dll |
+            Where-Object { $_.Name -match "hidapi|libhidapi" } |
+            Select-Object -First 1
+
+          if (-not $hidDll) {
+            throw "Could not find a HIDAPI DLL in the downloaded release."
+          }
+
+          Write-Host "Using HIDAPI DLL: $($hidDll.FullName)"
+
+          python -m PyInstaller `
+            --noconfirm `
+            --clean `
+            --windowed `
+            --onedir `
+            --name MyHidApp `
+            --collect-all PySide6 `
+            --add-data "pico-pinout-1-green.jpg;." `
+            --add-binary "$($hidDll.FullName);." `
+            basic_app.py
 
       - name: Zip output
-        run: Compress-Archive -Path dist/MyHidApp/* -DestinationPath dist/MyHidApp-windows.zip
+        shell: pwsh
+        run: |
+          Compress-Archive -Path dist/MyHidApp/* -DestinationPath dist/MyHidApp-windows.zip
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
