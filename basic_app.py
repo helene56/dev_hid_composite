@@ -4,6 +4,22 @@ from PySide6.QtGui import QShortcut, QKeySequence, QPixmap
 from PySide6.QtGui import QGuiApplication
 
 import hid
+import json
+
+from pathlib import Path
+
+SAVE_FILE = Path("save.json")
+
+
+
+def save_data(data: dict[int, str]) -> None:
+    SAVE_FILE.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+def load_data() -> dict[str, str]:
+    if not SAVE_FILE.exists():
+        return {}
+    return json.loads(SAVE_FILE.read_text(encoding="utf-8"))
+
 
 # TODO:
 # add a paste button in case of not wanting to manually type a macro
@@ -63,6 +79,7 @@ class MainWindow(QMainWindow):
         self.listen_for_key = False
         layout = QGridLayout(container)
         self.key_cell_list = []
+        self.loaded_data = load_data()
 
         # label1 = QLabel("hello world1")
         # label1.setAlignment(Qt.AlignCenter)
@@ -348,7 +365,13 @@ class MainWindow(QMainWindow):
                 "font-weight: 600;"
             )
 
-            value_label = QLabel("")
+            # value_label = QLabel("")
+            load_text = ""
+            if str(i+1) in self.loaded_data:
+                load_text = self.loaded_data[str(i+1)]
+                value_label = QLabel(load_text)
+            else:
+                value_label = QLabel("")
             value_label.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
             value_label.setStyleSheet(
                 "background: transparent;"
@@ -399,6 +422,7 @@ class MainWindow(QMainWindow):
             if self.macro_setting_text:
                 send_macro_cmd(btn_id, self.macro_code_buffer)
                 self.macro_setting_text = ""
+                self.macro_code_buffer = bytearray()
             
             
         # optional: do something when unchecked as well
@@ -429,8 +453,11 @@ class MainWindow(QMainWindow):
                 self.listen_for_key = False
                 
                 send_macro_cmd(self.last_checked_id, self.macro_code_buffer)
+                self.loaded_data[self.last_checked_id] = self.macro_setting_text
+                save_data(self.loaded_data)
                 self.macro_setting_text = ""
                 self.macro_code_buffer = bytearray()
+                
                 return
             else:
  
