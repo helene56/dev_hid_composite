@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import QApplication, QMainWindow, QLabel, QWidget, QGridLayout, QHBoxLayout, QVBoxLayout, QPushButton, QGraphicsDropShadowEffect, QButtonGroup
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QShortcut, QKeySequence, QPixmap
+from PySide6.QtGui import QKeySequence, QPixmap
 from PySide6.QtGui import QGuiApplication
 
 import hid
@@ -8,7 +8,19 @@ import json
 
 from pathlib import Path
 
-SAVE_FILE = Path("save.json")
+
+import sys
+from PySide6.QtCore import Qt, QStandardPaths
+
+def resource_path(name: str) -> Path:
+    base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+    return base / name
+
+APP_DIR = Path(QStandardPaths.writableLocation(QStandardPaths.AppDataLocation))
+APP_DIR.mkdir(parents=True, exist_ok=True)
+SAVE_FILE = APP_DIR / "save.json"
+
+# SAVE_FILE = Path("save.json")
 
 
 
@@ -172,7 +184,7 @@ class MainWindow(QMainWindow):
 
         # scaled pinout image to sit to the right of the key grid
         img_label = QLabel()
-        pixmap = QPixmap("pico-pinout-1-green.jpg")
+        pixmap = QPixmap(str(resource_path("pico-pinout-1-green.jpg")))
         if not pixmap.isNull():
             pixmap = pixmap.scaledToHeight(blue_h, Qt.SmoothTransformation)
             img_label.setPixmap(pixmap)
