@@ -57,7 +57,9 @@ pico_enable_stdio_usb(dev_hid_composite 1)
 # pico_enable_stdio_uart(dev_hid_composite 0)
 
 # Uncomment this line to enable fix for Errata RP2040-E5 (the fix requires use of GPIO 15)
-#target_compile_definitions(dev_hid_composite PUBLIC PICO_RP2040_USB_DEVICE_ENUMERATION_FIX=1)
+# target_compile_definitions(dev_hid_composite PUBLIC PICO_RP2040_USB_DEVICE_ENUMERATION_FIX=1)
+
+target_compile_definitions(dev_hid_composite PRIVATE KEYBOARD_VERSION=1)
 
 pico_add_extra_outputs(dev_hid_composite)
 

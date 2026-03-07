@@ -51,6 +51,25 @@ enum
     BLINK_SUSPENDED = 2500,
 };
 
+
+#if KEYBOARD_VERSION == 2
+
+enum col
+{
+    COLA = 6, //ok
+    COLB = 9, // ok
+    COLC = 10, // ok
+};
+
+enum row
+{
+    ROW1 = 5, //ok
+    ROW2 = 8, //ok
+    ROW3 = 11, // ok
+};
+
+#else
+// KEYBOARD_VERSION 1
 enum col
 {
     COLA = 5,
@@ -64,6 +83,8 @@ enum row
     ROW2 = 6,
     ROW3 = 9,
 };
+
+#endif
 
 static uint32_t blink_interval_ms = BLINK_NOT_MOUNTED;
 static enum col col_arr[] = {COLA, COLB, COLC};
