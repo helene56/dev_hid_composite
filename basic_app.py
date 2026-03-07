@@ -25,21 +25,27 @@ def load_data() -> dict[str, str]:
 # add a paste button in case of not wanting to manually type a macro
 # add the posibility to edit an exisiting macro instead of replacing it totally
 
-def toggle_led_on(on):
-    # d = hid.device()
-    # d.open(0xCAFE, 0x4006)
+def open_vendor_device(serial=None):
+    for info in hid.enumerate(0xCAFE, 0x4006):
+        if info["usage_page"] == 0xFF00 and info["usage"] == 0x0001:
+            if serial is None or info["serial_number"] == serial:
+                d = hid.device()
+                d.open_path(info["path"])
+                return d
+    raise RuntimeError("Vendor HID collection not found")
 
-    # report_len = 65
-    # if on:
-    #     report = [0x02, 0x00, 0x02] + [0x00] * (report_len - 3)
-    # else:
-    #    report = [0x02, 0x00, 0x00] + [0x00] * (report_len - 3) 
-    
-    # d.write(report)
-    # d.close()
-    print("led on")
 
-def send_macro_cmd(key_id, buffer):
+
+def toggle_led_on(on, serial=None):
+    d = open_vendor_device(serial)
+    try:
+        report = [0x02, 0x00, 0x02 if on else 0x00] + [0x00] * 62
+        wrote = d.write(report)
+        print(f"wrote {wrote} bytes")
+    finally:
+        d.close()
+
+def send_macro_cmd(key_id, buffer, serial=None):
     # cmd = cmd.encode("utf-8")
     key_id_b = key_id.to_bytes(1, "big")
     report_id = 0x02
@@ -51,10 +57,10 @@ def send_macro_cmd(key_id, buffer):
     msg = report_id_b + key_id_b + buffer.ljust(64, b"\x00")
     print(f"final message: {msg!r}")      # shows b'\x02...'
     print(f"final message: {msg.hex()}")  # shows hex string
-    # d = hid.device()
+    d = open_vendor_device(serial)
     # d.open(0xCAFE, 0x4006)
-    # d.write(msg)
-    # d.close()
+    d.write(msg)
+    d.close()
     
 
 
