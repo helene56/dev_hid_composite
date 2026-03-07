@@ -127,53 +127,6 @@ KeyCell mapped_keys[3][3] =
     }
 };
 
-KeyCell default_mapped_keys[3][3] =
-{
-    {
-        {
-            { 0 },
-            { HID_KEY_H, HID_KEY_E, HID_KEY_L, HID_KEY_L, HID_KEY_O,
-              HID_KEY_SPACE, HID_KEY_W, HID_KEY_O, HID_KEY_R, HID_KEY_L,
-              HID_KEY_D, HID_KEY_SPACE }
-        },
-        {
-            { 0 },
-            { HID_KEY_1, HID_KEY_2, HID_KEY_3 }
-        },
-        {
-            { 0 },
-            { HID_KEY_2 }
-        }
-    },
-    {
-        {
-            { 0 },
-            { HID_KEY_3 }
-        },
-        {
-            { 0 },
-            { HID_KEY_4 }
-        },
-        {
-            { 0 },
-            { HID_KEY_5 }
-        }
-    },
-    {
-        {
-            { 0 },
-            { HID_KEY_C }
-        },
-        {
-            { 0 },
-            { HID_KEY_7 }
-        },
-        {
-            { 0 },
-            { HID_KEY_V }
-        }
-    }
-};
 
 uint8_t const conv_table[128][2] =  { HID_ASCII_TO_KEYCODE };
 
@@ -300,12 +253,12 @@ void read_flash_count()
 {
     const SavedKeys* flash_data = (const SavedKeys*)(flash_target_contents);
     // read flash struct magic
-    if (flash_data->magic == COUNT_MAGIC && flash_data->version == 2)
+    if (flash_data->magic == COUNT_MAGIC && flash_data->version == 4)
     {
         // valid
         // copy to ram
         persistent_keys = *flash_data; // copies the whole struct from flash into ram variable
-        // load_mapped_keys_from_persistent();
+        load_mapped_keys_from_persistent();
         // count_data.counter++;
     }
     else
@@ -313,8 +266,8 @@ void read_flash_count()
 
         persistent_keys.magic = COUNT_MAGIC;
         init_default_key_data();
-        persistent_keys.version = 2;
-        // load_mapped_keys_from_persistent();
+        persistent_keys.version = 4;
+        load_mapped_keys_from_persistent();
         init_count_data();
         // count_data.counter = 1;
 
@@ -348,14 +301,7 @@ int main(void)
     }
     // let pico sdk use the first cdc interface for std io
     stdio_init_all();
-    KeyCell test = {
-        { 0 },
-        { HID_KEY_H, HID_KEY_E, HID_KEY_L, HID_KEY_L, HID_KEY_O }
-    };
-
-
-
-    // read_flash_count();
+    read_flash_count();
     // init_count_data();
     // initialize saved keys
     // init_key_data();
@@ -390,9 +336,6 @@ int main(void)
         hid_task();
         
         // print_buf(flash_target_contents, pages_needed * FLASH_PAGE_SIZE);
-        printf("default 1: %d\n", mapped_keys[0][0].keys[0]);
-        printf("default key 1: %d\n", default_mapped_keys[0][0].keys[0]);
-        printf("test.keys[0] = %u\n", test.keys[0]);
         // printf("sizeof(KeyCell): %zu\n", sizeof(KeyCell));
         // printf("sizeof(SavedKeys): %zu\n", sizeof(SavedKeys));
         // custom_cdc_task();
@@ -585,14 +528,21 @@ void map_assign_keys(uint8_t const *macro_cmd)
     uint row =  key_id / 3;
     uint col =  key_id % 3;
     printf("row: %d, col: %d\n", row, col);
-    // memset(&persistent_keys.keys[row][col], 0, sizeof(persistent_keys.keys[row][col]));
-    // memset(&mapped_keys[row][col], 0, sizeof(mapped_keys[row][col]));
+
+    if (!*macro_str)
+    {
+        printf("empty macro ignored\n");
+        return;
+    }
+
+    memset(&persistent_keys.keys[row][col], 0, sizeof(persistent_keys.keys[row][col]));
+    memset(&mapped_keys[row][col], 0, sizeof(mapped_keys[row][col]));
     // copy the macro_str to be used as the key macro into the mapped_key
     for (int i = 0; i < KEY_LEN-1; i++)
     {
-        
-        uint8_t hid_keycode;
         uint8_t hid_modifier = 0;
+
+        uint8_t hid_keycode;
         printf("key char: %c\n", *macro_str);
         switch (*macro_str)
         {
@@ -633,24 +583,24 @@ void map_assign_keys(uint8_t const *macro_cmd)
 
         printf("keycode: %d\n", hid_keycode);
         // update flash
-        // persistent_keys.keys[row][col].keys[i] = hid_keycode;
-        // persistent_keys.keys[row][col].key_modifier[i] = hid_modifier;
+        persistent_keys.keys[row][col].keys[i] = hid_keycode;
+        persistent_keys.keys[row][col].key_modifier[i] = hid_modifier;
 
         mapped_keys[row][col].keys[i] = hid_keycode;
         mapped_keys[row][col].key_modifier[i] = hid_modifier;
 
+        // move to the next char
+        macro_str++;
 
         if (!*macro_str)
         {
             break;
         }
-        // move to the next char
-        macro_str++;
     }
     // safeguard set last val to nullbyte terminator
     mapped_keys[row][col].keys[KEY_LEN-1] = 0;
-    // persistent_keys.keys[row][col].keys[KEY_LEN-1] = 0;
-    // init_count_data();
+    persistent_keys.keys[row][col].keys[KEY_LEN-1] = 0;
+    init_count_data();
 
 }
 
