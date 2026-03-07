@@ -1,0 +1,36 @@
+name: Build Windows EXE
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Build exe
+        run: |
+          pyinstaller --noconfirm --clean --windowed --onedir --name MyHidApp --collect-all PySide6 --add-data "pico-pinout-1-green.jpg;." --add-binary "libhidapi-0.dll;." basic_app.py
+
+      - name: Zip output
+        run: Compress-Archive -Path dist/MyHidApp/* -DestinationPath dist/MyHidApp-windows.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MyHidApp-windows
+          path: dist/MyHidApp-windows.zip
