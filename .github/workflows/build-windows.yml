@@ -29,7 +29,7 @@ jobs:
           git clone --recursive https://github.com/trezor/cython-hidapi.git
           Set-Location cython-hidapi
           python setup.py build
-          pip install -e . --no-build-isolation
+          python -m pip install . --no-build-isolation
           python -c "import hid; print(hid.__file__)"
 
       - name: Build exe
@@ -42,6 +42,7 @@ jobs:
             --onedir `
             --name MyHidApp `
             --collect-all PySide6 `
+            --hidden-import hid `
             --add-data "pico-pinout-1-green.jpg;." `
             basic_app.py
 
