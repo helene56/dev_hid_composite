@@ -17,37 +17,24 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install dependencies
+      - name: Install app dependencies
         shell: pwsh
         run: |
-          python -m pip install --upgrade pip
+          python -m pip install --upgrade pip setuptools wheel Cython
           pip install -r requirements.txt
 
-      - name: Download HIDAPI
+      - name: Build and install cython-hidapi
         shell: pwsh
         run: |
-          $hidapiVersion = "0.15.0"
-          $zipUrl = "https://github.com/libusb/hidapi/releases/download/hidapi-$hidapiVersion/hidapi-win.zip"
-
-          Invoke-WebRequest -Uri $zipUrl -OutFile "hidapi-win.zip"
-          Expand-Archive -Path "hidapi-win.zip" -DestinationPath "hidapi"
-
-          Write-Host "Downloaded HIDAPI contents:"
-          Get-ChildItem -Recurse "hidapi"
+          git clone --recursive https://github.com/trezor/cython-hidapi.git
+          Set-Location cython-hidapi
+          python setup.py build
+          pip install -e . --no-build-isolation
+          python -c "import hid; print(hid.__file__)"
 
       - name: Build exe
         shell: pwsh
         run: |
-          $hidDll = Get-ChildItem -Recurse "hidapi" -Filter *.dll |
-            Where-Object { $_.Name -match "hidapi|libhidapi" } |
-            Select-Object -First 1
-
-          if (-not $hidDll) {
-            throw "Could not find a HIDAPI DLL in the downloaded release."
-          }
-
-          Write-Host "Using HIDAPI DLL: $($hidDll.FullName)"
-
           python -m PyInstaller `
             --noconfirm `
             --clean `
@@ -56,7 +43,6 @@ jobs:
             --name MyHidApp `
             --collect-all PySide6 `
             --add-data "pico-pinout-1-green.jpg;." `
-            --add-binary "$($hidDll.FullName);." `
             basic_app.py
 
       - name: Zip output
