@@ -1,0 +1,89 @@
+name: Build Windows EXE (PyPI hidapi)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    env:
+      AZURE_CODESIGN_ENDPOINT: ${{ vars.AZURE_CODESIGN_ENDPOINT }}
+      AZURE_CODESIGN_ACCOUNT_NAME: ${{ vars.AZURE_CODESIGN_ACCOUNT_NAME }}
+      AZURE_CODESIGN_CERT_PROFILE_NAME: ${{ vars.AZURE_CODESIGN_CERT_PROFILE_NAME }}
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install app dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install hidapi
+          python -c "import hid; print(hid.__file__)"
+
+      - name: Build exe
+        shell: pwsh
+        run: |
+          python -m PyInstaller `
+            --noconfirm `
+            --clean `
+            --windowed `
+            --onedir `
+            --name MyHidApp `
+            --collect-all PySide6 `
+            --hidden-import hid `
+            --add-data "pico-pinout-1-green.jpg;." `
+            basic_app_nrf.py
+
+      - name: Azure login for Trusted Signing
+        if: ${{ env.AZURE_CODESIGN_ENDPOINT != '' && env.AZURE_CODESIGN_ACCOUNT_NAME != '' && env.AZURE_CODESIGN_CERT_PROFILE_NAME != '' && env.AZURE_CLIENT_ID != '' && env.AZURE_TENANT_ID != '' && env.AZURE_SUBSCRIPTION_ID != '' }}
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Sign files with Trusted Signing
+        if: ${{ env.AZURE_CODESIGN_ENDPOINT != '' && env.AZURE_CODESIGN_ACCOUNT_NAME != '' && env.AZURE_CODESIGN_CERT_PROFILE_NAME != '' && env.AZURE_CLIENT_ID != '' && env.AZURE_TENANT_ID != '' && env.AZURE_SUBSCRIPTION_ID != '' }}
+        uses: azure/artifact-signing-action@v1
+        with:
+          endpoint: ${{ env.AZURE_CODESIGN_ENDPOINT }}
+          signing-account-name: ${{ env.AZURE_CODESIGN_ACCOUNT_NAME }}
+          certificate-profile-name: ${{ env.AZURE_CODESIGN_CERT_PROFILE_NAME }}
+          files-folder: ${{ github.workspace }}\dist\MyHidApp
+          files-folder-filter: exe,dll,pyd
+          files-folder-recurse: true
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
+      - name: Trusted Signing not configured
+        if: ${{ env.AZURE_CODESIGN_ENDPOINT == '' || env.AZURE_CODESIGN_ACCOUNT_NAME == '' || env.AZURE_CODESIGN_CERT_PROFILE_NAME == '' || env.AZURE_CLIENT_ID == '' || env.AZURE_TENANT_ID == '' || env.AZURE_SUBSCRIPTION_ID == '' }}
+        shell: pwsh
+        run: |
+          Write-Host "Trusted Signing skipped."
+          Write-Host "Set repo vars: AZURE_CODESIGN_ENDPOINT, AZURE_CODESIGN_ACCOUNT_NAME, AZURE_CODESIGN_CERT_PROFILE_NAME"
+          Write-Host "Set repo secrets: AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID"
+
+      - name: Zip output
+        shell: pwsh
+        run: |
+          Compress-Archive -Path dist/MyHidApp/* -DestinationPath dist/MyHidApp-windows-pypi-hidapi.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MyHidApp-windows-pypi-hidapi
+          path: dist/MyHidApp-windows-pypi-hidapi.zip
