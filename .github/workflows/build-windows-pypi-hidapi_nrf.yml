@@ -1,4 +1,4 @@
-name: Build Windows EXE (PyPI hidapi)
+name: Build Windows EXE (PyPI hidapi) for nrf
 
 on:
   workflow_dispatch:
